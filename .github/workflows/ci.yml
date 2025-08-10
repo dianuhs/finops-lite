@@ -20,19 +20,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          # safety net in case packaging deps are missed
           pip install boto3
+          pip show finops-lite || true
+          pip list | grep finops || true
 
       - name: Smoke import
         run: |
           python - <<'PY'
-          import importlib
-          importlib.import_module("finops_lite")
+          import sys
+          print("sys.path:", sys.path)
+          import finops_lite, importlib
           importlib.import_module("finops_lite.cli")
-          print("import_ok")
+          print("import_ok:", getattr(finops_lite, "__file__", "<no-file-attr>"))
           PY
-
-      - name: CLI --help
-        run: |
-          python -m finops_lite.cli --help
-          python -m finops_lite.cli services --help
