@@ -58,6 +58,14 @@ that’s normal, try again in a few hours. AWS says it can take up to ~24h the f
 
 ⬜ csv/json/pdf export
 
+
+&nbsp;
+### features (so far)
+
+- month-to-date total (falls back to last month if CE isn’t ready)
+- cost by service for the last N days (top N)
+
+
 &nbsp;
 ### why i built this
 cloud bills can get messy fast.
