@@ -15,6 +15,5 @@ finops-lite = "finops_lite.cli:main"
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["finops_lite*"]
+[tool.setuptools]
+packages = ["finops_lite"]
