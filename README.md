@@ -1,2 +1,20 @@
-# finops-lite
-AWS FinOps dashboard — multi-account cost analysis, tag hygiene scoring, and waste audits
+# FinOps Lite — AWS Cost & Tag Hygiene
+
+**Goal:** a beginner-friendly FinOps tool + reports that help small teams see spend, spot waste, and fix tag hygiene.
+
+## Why this exists
+Cloud bills are confusing. This project is my learning-by-building path into FinOps: clear cost views, a simple “tag hygiene score,” and quick-win savings recommendations.
+
+## Roadmap (MVP)
+- [ ] CLI that shows this month’s AWS cost
+- [ ] Cost by service (last 30 days)
+- [ ] Audit: untagged resources + stopped/unused items
+- [ ] “Tag Hygiene Score” (by service + overall)
+- [ ] Export: CSV/JSON (PDF later)
+
+## Sample Outputs (coming soon)
+- screenshots + example reports with dummy data
+
+## Notes
+- Read-only IAM / least privilege
+- No customer data stored in repo
