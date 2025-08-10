@@ -2,6 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 [![Status](https://img.shields.io/badge/status-pre--alpha-blue.svg)](#project-status)
+[![CI](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml)
+
 
 a simple CLI that shows your AWS spend right in the terminal.
 month-to-date totals, last month fallback, and cost-by-service... all in seconds.
