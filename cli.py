@@ -1,48 +1,49 @@
 #!/usr/bin/env python3
-"""
-FinOps Lite — month-to-date AWS cost (Unblended) with friendly errors.
-"""
-from datetime import date
+from datetime import date, timedelta
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-def first_day_of_month(d: date) -> date:
-    return d.replace(day=1)
+def first_day(d: date) -> date: return d.replace(day=1)
 
-def get_month_to_date_cost():
+def get_cost(start: date, end: date):
     ce = boto3.client("ce")
-    start = first_day_of_month(date.today()).strftime("%Y-%m-%d")
-    end = date.today().strftime("%Y-%m-%d")
-    try:
-        resp = ce.get_cost_and_usage(
-            TimePeriod={"Start": start, "End": end},
-            Granularity="MONTHLY",
-            Metrics=["UnblendedCost"],
-        )
-        results = resp.get("ResultsByTime", [])
-        amount = results[0]["Total"]["UnblendedCost"]["Amount"] if results else "0"
-        currency = results[0]["Total"]["UnblendedCost"].get("Unit", "USD") if results else "USD"
-        return float(amount), currency, start, end
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code", "")
-        msg = e.response.get("Error", {}).get("Message", "")
-        # Common first-run message when Cost Explorer was just enabled
-        if code == "AccessDeniedException" and "not enabled for cost explorer" in msg.lower():
-            return None, None, start, end  # signal "warming up"
-        raise
-    except BotoCoreError:
-        raise
+    resp = ce.get_cost_and_usage(
+        TimePeriod={"Start": start.strftime("%Y-%m-%d"), "End": end.strftime("%Y-%m-%d")},
+        Granularity="MONTHLY",
+        Metrics=["UnblendedCost"],
+    )
+    r = resp.get("ResultsByTime", [])
+    amt = float(r[0]["Total"]["UnblendedCost"]["Amount"]) if r else 0.0
+    unit = r[0]["Total"]["UnblendedCost"].get("Unit", "USD") if r else "USD"
+    return amt, unit
 
 def main():
+    today = date.today()
+    start_mtd = first_day(today)
     try:
-        amt, unit, start, end = get_month_to_date_cost()
+        amt, unit = get_cost(start_mtd, today)
         print("finops lite")
-        print(f"range: {start} → {end}")
-        if amt is None:
-            print("cost explorer is warming up. try again in a few hours.")
+        print(f"range: {start_mtd} → {today}")
+        print(f"month-to-date cost: {amt:.2f} {unit}")
+    except ClientError as e:
+        msg = (e.response.get("Error", {}) or {}).get("Message","").lower()
+        if "data is not available" in msg or "not enabled for cost explorer" in msg:
+            # fall back to last full month
+            start_last = first_day(today.replace(day=1) - timedelta(days=1)).replace(day=1)
+            end_last = first_day(today)
+            try:
+                amt, unit = get_cost(start_last, end_last)
+                print("finops lite")
+                print("cost explorer is still ingesting current-month data.")
+                print(f"showing last full month instead: {start_last} → {end_last}")
+                print(f"total cost: {amt:.2f} {unit}")
+            except Exception as e2:
+                print("finops lite")
+                print("error while fetching last month:", e2)
         else:
-            print(f"month-to-date cost: {amt:.2f} {unit}")
-    except Exception as e:
+            print("finops lite")
+            print("error:", e)
+    except (BotoCoreError, Exception) as e:
         print("finops lite")
         print("error:", e)
 
