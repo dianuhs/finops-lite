@@ -1,4 +1,7 @@
-### finops-lite
+## finops-lite
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
+[![Status](https://img.shields.io/badge/status-pre--alpha-blue.svg)](#project-status)
 
 a simple CLI that shows your AWS spend right in the terminal.
 month-to-date totals, last month fallback, and cost-by-service... all in seconds.
@@ -60,7 +63,3 @@ that’s normal, try again in a few hours. AWS says it can take up to ~24h the f
 cloud bills can get messy fast.
 sometimes you just want to know "what’s the damage?" without clicking through the AWS console.
 this script does exactly that.
-
-&nbsp;
-### license
-MIT
