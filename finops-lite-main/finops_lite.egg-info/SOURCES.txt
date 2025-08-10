@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+finops_lite/__init__.py
+finops_lite/cli.py
+finops_lite.egg-info/PKG-INFO
+finops_lite.egg-info/SOURCES.txt
+finops_lite.egg-info/dependency_links.txt
+finops_lite.egg-info/entry_points.txt
+finops_lite.egg-info/requires.txt
+finops_lite.egg-info/top_level.txt

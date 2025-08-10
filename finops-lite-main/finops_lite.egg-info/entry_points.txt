@@ -1,0 +1,2 @@
+[console_scripts]
+finops-lite = finops_lite.cli:main
