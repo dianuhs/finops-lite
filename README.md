@@ -63,3 +63,15 @@ that’s normal, try again in a few hours. AWS says it can take up to ~24h the f
 cloud bills can get messy fast.
 sometimes you just want to know "what’s the damage?" without clicking through the AWS console.
 this script does exactly that.
+
+&nbsp;
+### cost notes
+
+this tool calls AWS Cost Explorer. AWS may charge about **$0.01 per API call**. keep runs small during testing.
+
+
+&nbsp;
+### screenshots
+
+> real screenshots coming soon (once Cost Explorer finishes ingesting)
+
