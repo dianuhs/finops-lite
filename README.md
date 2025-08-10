@@ -69,7 +69,7 @@ that’s normal, try again in a few hours. AWS says it can take up to ~24h the f
 
 
 &nbsp;
-### why i built this
+### why I built this
 cloud bills can get messy fast.
 sometimes you just want to know "what’s the damage?" without clicking through the AWS console.
 this script does exactly that.
