@@ -124,7 +124,7 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         # Commands that don't need AWS connectivity
         no_aws_commands = ['setup', 'version']
         
-        # Test AWS connectivity only for commands that need it
+        # Test AWS connectivity only for commands that need it and not in dry-run
         if (ctx.invoked_subcommand and 
             ctx.invoked_subcommand not in no_aws_commands and 
             not dry_run):
@@ -188,6 +188,7 @@ def cost_overview(ctx, days, group_by):
     """Get a comprehensive cost overview."""
     config = ctx.obj.config
     logger = ctx.obj.logger
+    dry_run = ctx.obj.dry_run
     
     try:
         with Progress(
@@ -197,19 +198,24 @@ def cost_overview(ctx, days, group_by):
         ) as progress:
             task = progress.add_task("Fetching cost data...", total=None)
             
-            # Use real AWS Cost Explorer service
-            from .core.cost_explorer import CostExplorerService
-            cost_service = CostExplorerService(config)
-            
-            progress.update(task, description="Analyzing costs...")
-            
-            # Get real cost data
-            cost_analysis = cost_service.get_monthly_cost_overview(days)
-            
-            progress.update(task, description="Formatting results...")
-            
-            # Display real cost data
-            _display_cost_overview_real(config, cost_analysis, group_by)
+            if dry_run:
+                # Show demo data in dry-run mode
+                progress.update(task, description="Generating demo data...")
+                _display_cost_overview_demo(config, days, group_by)
+            else:
+                # Use real AWS Cost Explorer service
+                from .core.cost_explorer import CostExplorerService
+                cost_service = CostExplorerService(config)
+                
+                progress.update(task, description="Analyzing costs...")
+                
+                # Get real cost data
+                cost_analysis = cost_service.get_monthly_cost_overview(days)
+                
+                progress.update(task, description="Formatting results...")
+                
+                # Display real cost data
+                _display_cost_overview_real(config, cost_analysis, group_by)
             
     except Exception as e:
         console.print(f"[red]Error getting cost overview: {e}[/red]")
@@ -218,6 +224,83 @@ def cost_overview(ctx, days, group_by):
         else:
             console.print("[yellow]Tip: Use --verbose for detailed error information[/yellow]")
         sys.exit(1)
+
+
+def _display_cost_overview_demo(config: FinOpsConfig, days: int, group_by: str):
+    """Display demo cost overview for dry-run mode."""
+    
+    # Format currency according to config
+    currency = config.output.currency
+    decimal_places = config.output.decimal_places
+    
+    def format_cost(amount):
+        """Format cost amount with proper currency and decimals."""
+        if currency == 'USD':
+            return f"${amount:,.{decimal_places}f}"
+        else:
+            return f"{amount:,.{decimal_places}f} {currency}"
+    
+    # Demo data
+    total_cost = 2847.23
+    daily_avg = total_cost / days
+    
+    # Demo summary panel
+    summary_text = f"""
+[bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
+[bold]Total Cost:[/bold] [green]{format_cost(total_cost)}[/green]
+[bold]Daily Average:[/bold] {format_cost(daily_avg)}
+[bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
+[bold]Currency:[/bold] {currency}
+"""
+    
+    console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
+    
+    # Demo service breakdown table
+    table = Table(title=f"💸 Top Costs by Service (Demo Data)")
+    table.add_column("Service", style="cyan", no_wrap=True)
+    table.add_column("Cost", style="green", justify="right")
+    table.add_column("% of Total", style="yellow", justify="right")
+    table.add_column("Daily Avg", style="blue", justify="right")
+    table.add_column("Trend", justify="center")
+    
+    # Demo services data
+    demo_services = [
+        ("Amazon Elastic Compute Cloud", 1234.56, 43.4, "[red]↗[/red]"),
+        ("Amazon Relational Database Service", 543.21, 19.1, "[green]↘[/green]"),
+        ("Amazon Simple Storage Service", 321.45, 11.3, "[blue]→[/blue]"),
+        ("AWS Lambda", 198.76, 7.0, "[green]↘[/green]"),
+        ("Amazon CloudWatch", 87.65, 3.1, "[red]↗[/red]"),
+        ("Amazon Virtual Private Cloud", 45.32, 1.6, "[blue]→[/blue]"),
+        ("AWS Key Management Service", 23.18, 0.8, "[green]↘[/green]"),
+    ]
+    
+    for service, cost, percentage, trend in demo_services:
+        daily_cost = cost / days
+        table.add_row(
+            service,
+            format_cost(cost),
+            f"{percentage:.1f}%",
+            format_cost(daily_cost),
+            trend
+        )
+    
+    console.print(table)
+    
+    # Demo optimization opportunities
+    if config.output.verbose:
+        opportunities_text = f"""
+[bold]💡 Optimization Opportunities:[/bold]
+
+• [yellow]EC2 Rightsizing:[/yellow] {format_cost(1234.56)} in EC2 costs - consider rightsizing analysis
+• [yellow]RDS Optimization:[/yellow] {format_cost(543.21)} in RDS costs - review instance types and storage
+• [yellow]Cost Trend Alert:[/yellow] 2 services trending up ({format_cost(1322.21)})
+• [yellow]Reserved Instances:[/yellow] Consider RIs for consistent EC2 workloads
+"""
+        
+        console.print(Panel(opportunities_text, title="🎯 Recommendations (Demo)", border_style="yellow"))
+    
+    # Show note about demo mode
+    console.print(f"\n[dim]💡 This is demo data. Connect AWS credentials to see real cost information.[/dim]")
 
 
 def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group_by: str):
