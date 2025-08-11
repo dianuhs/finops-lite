@@ -127,10 +127,10 @@ dmypy.json
 aws-credentials.json
 
 # FinOps specific
-finops.yaml
-finops.yml
-.finops.yaml
-.finops.yml
+/finops.yaml
+/finops.yml
+/.finops.yaml
+/.finops.yml
 config/local/
 
 # IDE files

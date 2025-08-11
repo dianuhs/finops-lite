@@ -1,0 +1,98 @@
+# FinOps Lite Configuration Template
+# Save this as ~/.config/finops/config.yaml or finops.yaml in your project directory
+
+# AWS Configuration
+aws:
+  # AWS Profile to use (optional - can use default)
+  profile: "default"
+  
+  # AWS Region (optional - will use profile default)
+  region: "us-east-1"
+  
+  # Role assumption (optional - for cross-account access)
+  # assume_role_arn: "arn:aws:iam::123456789012:role/FinOpsRole"
+  # assume_role_session_name: "finops-lite-session"
+
+# Output Configuration
+output:
+  # Output format: table, json, csv, yaml
+  format: "table"
+  
+  # Enable colored output
+  color: true
+  
+  # Verbosity settings
+  verbose: false
+  quiet: false
+  
+  # Currency display
+  currency: "USD"
+  decimal_places: 2
+
+# Cost Analysis Configuration
+cost:
+  # Default number of days to analyze
+  default_days: 30
+  
+  # Hide costs below this threshold (in USD)
+  cost_threshold: 0.01
+  
+  # Default grouping dimensions
+  group_by:
+    - "SERVICE"
+  
+  # Available cost dimensions
+  dimensions:
+    - "SERVICE"
+    - "LINKED_ACCOUNT"
+    - "REGION"
+    - "AVAILABILITY_ZONE"
+    - "INSTANCE_TYPE"
+    - "USAGE_TYPE"
+  
+  # Cost metrics to analyze
+  metrics:
+    - "BlendedCost"
+    - "UnblendedCost"
+    - "UsageQuantity"
+
+# Tagging Configuration
+tagging:
+  # Required tags for compliance
+  required_tags:
+    - "Environment"
+    - "Owner"
+    - "Project"
+    - "CostCenter"
+  
+  # Cost allocation tags (for cost reporting)
+  cost_allocation_tags:
+    - "Environment"
+    - "Owner"
+    - "Project"
+    - "CostCenter"
+    - "Department"
+  
+  # Resource types to ignore in tagging compliance
+  ignore_resources:
+    - "AWS::EC2::Volume"  # EBS volumes created by ASG
+    - "AWS::EC2::NetworkInterface"  # ENIs created automatically
+  
+  # Enforce tagging compliance
+  tag_enforcement: true
+
+# Alert Configuration
+alerts:
+  # Cost spike alert threshold (USD)
+  cost_spike_threshold: 1000.0
+  
+  # Cost spike percentage (20% = 0.20)
+  cost_spike_percentage: 0.20
+  
+  # Enable anomaly detection
+  anomaly_detection: true
+  
+  # Notification channels (future feature)
+  notification_channels:
+    # - "slack://hooks.slack.com/services/..."
+    # - "email://alerts@company.com"
