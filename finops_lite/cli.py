@@ -121,8 +121,13 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         ctx.obj.verbose = verbose
         ctx.obj.dry_run = dry_run
         
-        # Test AWS connectivity if not in help mode
-        if ctx.invoked_subcommand and ctx.invoked_subcommand != 'setup':
+        # Commands that don't need AWS connectivity
+        no_aws_commands = ['setup', 'version']
+        
+        # Test AWS connectivity only for commands that need it
+        if (ctx.invoked_subcommand and 
+            ctx.invoked_subcommand not in no_aws_commands and 
+            not dry_run):
             _test_aws_connectivity(app_config, logger)
             
     except Exception as e:
@@ -192,9 +197,6 @@ def cost_overview(ctx, days, group_by):
         ) as progress:
             task = progress.add_task("Fetching cost data...", total=None)
             
-            # This is where we'd integrate with the actual cost service
-            # For now, showing the structure
-            
             progress.update(task, description="Analyzing costs...")
             
             # Mock data for demonstration
@@ -240,187 +242,6 @@ def _display_cost_overview_mock(config: FinOpsConfig, days: int, group_by: str):
         table.add_row(service, cost, percent, trend)
     
     console.print(table)
-    
-    # Cost-saving opportunities
-    if config.output.verbose:
-        opportunities_text = """
-[bold]💡 Optimization Opportunities:[/bold]
-
-• [yellow]EC2 Rightsizing:[/yellow] Potential savings of $234/month
-• [yellow]Unused EBS Volumes:[/yellow] 12 volumes, $45/month
-• [yellow]Idle Load Balancers:[/yellow] 3 ALBs, $67/month
-• [yellow]Reserved Instances:[/yellow] 67% coverage opportunity
-"""
-        console.print(Panel(opportunities_text, title="🎯 Recommendations", border_style="yellow"))
-
-
-@cli.group()
-def tags():
-    """🏷️  Tag compliance and governance commands."""
-    pass
-
-
-@tags.command('compliance')
-@click.option(
-    '--service',
-    help='Filter by AWS service (e.g., ec2, rds, s3)'
-)
-@click.option(
-    '--fix',
-    is_flag=True,
-    help='Interactively fix tag compliance issues'
-)
-@click.pass_context
-def tag_compliance(ctx, service, fix):
-    """Check tag compliance across resources."""
-    config = ctx.obj.config
-    
-    try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Scanning resources...", total=None)
-            
-            # Mock compliance report
-            _display_tag_compliance_mock(config, service, fix)
-            
-    except Exception as e:
-        console.print(f"[red]Error checking tag compliance: {e}[/red]")
-        sys.exit(1)
-
-
-def _display_tag_compliance_mock(config: FinOpsConfig, service_filter: str, fix: bool):
-    """Display mock tag compliance report."""
-    
-    # Compliance summary
-    summary_text = f"""
-[bold]Resources Scanned:[/bold] 156
-[bold]Compliant:[/bold] [green]89 (57%)[/green]
-[bold]Non-Compliant:[/bold] [red]67 (43%)[/red]
-[bold]Required Tags:[/bold] {', '.join(config.tagging.required_tags)}
-"""
-    
-    console.print(Panel(summary_text, title="🏷️  Tag Compliance Report", border_style="blue"))
-    
-    # Non-compliant resources table
-    table = Table(title="❌ Non-Compliant Resources")
-    table.add_column("Resource", style="cyan")
-    table.add_column("Type", style="yellow")
-    table.add_column("Missing Tags", style="red")
-    table.add_column("Cost Impact", style="green", justify="right")
-    
-    # Mock non-compliant resources
-    resources = [
-        ("i-1234567890abcdef0", "EC2 Instance", "Environment, Owner", "$123.45"),
-        ("vol-abcdef1234567890", "EBS Volume", "Project", "$45.67"),
-        ("rds-production-db", "RDS Instance", "CostCenter", "$234.56"),
-    ]
-    
-    for resource, resource_type, missing, cost in resources:
-        table.add_row(resource, resource_type, missing, cost)
-    
-    console.print(table)
-    
-    if fix:
-        console.print("\n[bold yellow]Interactive tag fixing mode:[/yellow]")
-        if Confirm.ask("Would you like to fix tag compliance issues?"):
-            console.print("[green]Tag fixing functionality coming soon![/green]")
-
-
-@cli.group()
-def optimize():
-    """🚀 Cost optimization commands."""
-    pass
-
-
-@optimize.command('rightsizing')
-@click.option(
-    '--service',
-    type=click.Choice(['ec2', 'rds', 'all'], case_sensitive=False),
-    default='ec2',
-    help='Service to analyze for rightsizing'
-)
-@click.option(
-    '--savings-threshold',
-    type=float,
-    default=10.0,
-    help='Minimum monthly savings threshold (default: $10)'
-)
-@click.pass_context
-def rightsizing_recommendations(ctx, service, savings_threshold):
-    """Get rightsizing recommendations for underutilized resources."""
-    config = ctx.obj.config
-    
-    try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Analyzing resource utilization...", total=None)
-            
-            _display_rightsizing_mock(config, service, savings_threshold)
-            
-    except Exception as e:
-        console.print(f"[red]Error getting rightsizing recommendations: {e}[/red]")
-        sys.exit(1)
-
-
-def _display_rightsizing_mock(config: FinOpsConfig, service: str, threshold: float):
-    """Display mock rightsizing recommendations."""
-    
-    summary_text = f"""
-[bold]Service:[/bold] {service.upper()}
-[bold]Resources Analyzed:[/bold] 23
-[bold]Recommendations:[/bold] 8
-[bold]Potential Monthly Savings:[/bold] [green]$456.78[/green]
-"""
-    
-    console.print(Panel(summary_text, title="🚀 Rightsizing Analysis", border_style="green"))
-    
-    # Recommendations table
-    table = Table(title="💡 Rightsizing Recommendations")
-    table.add_column("Resource", style="cyan")
-    table.add_column("Current", style="yellow")
-    table.add_column("Recommended", style="green")
-    table.add_column("Monthly Savings", style="green", justify="right")
-    table.add_column("Confidence", justify="center")
-    
-    recommendations = [
-        ("i-1234567890abcdef0", "m5.large", "m5.medium", "$67.32", "[green]High[/green]"),
-        ("i-abcdef1234567890", "c5.xlarge", "c5.large", "$123.45", "[yellow]Medium[/yellow]"),
-        ("i-9876543210fedcba", "r5.2xlarge", "r5.xlarge", "$234.56", "[green]High[/green]"),
-    ]
-    
-    for resource, current, recommended, savings, confidence in recommendations:
-        table.add_row(resource, current, recommended, savings, confidence)
-    
-    console.print(table)
-
-
-@cli.command('setup')
-@click.option(
-    '--interactive', '-i',
-    is_flag=True,
-    help='Run interactive setup wizard'
-)
-def setup_config(interactive):
-    """🔧 Set up FinOps Lite configuration."""
-    if interactive:
-        console.print("[bold blue]🔧 FinOps Lite Setup Wizard[/bold blue]")
-        console.print("This will help you configure FinOps Lite for your AWS environment.\n")
-        
-        # Interactive setup would go here
-        console.print("[green]Interactive setup coming soon![/green]")
-        console.print("For now, copy the template from config/templates/finops.yaml")
-    else:
-        console.print("Configuration template available at: config/templates/finops.yaml")
-        console.print("Copy it to one of these locations:")
-        console.print("  • ./finops.yaml")
-        console.print("  • ~/.config/finops/config.yaml")
-        console.print("  • ~/.finops.yaml")
 
 
 @cli.command('version')
@@ -452,3 +273,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+EOF
