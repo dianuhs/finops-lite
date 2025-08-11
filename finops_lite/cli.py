@@ -121,17 +121,9 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         ctx.obj.verbose = verbose
         ctx.obj.dry_run = dry_run
         
-        # Commands that don't need AWS connectivity
-        no_aws_commands = ['setup', 'version']
+        # Skip AWS connectivity test entirely for demo purposes
+        # Real AWS testing will happen inside individual commands when needed
         
-        # Skip AWS connectivity test in dry-run mode or for non-AWS commands
-        # This allows demo mode to work without AWS credentials
-        if (ctx.invoked_subcommand and 
-            ctx.invoked_subcommand not in no_aws_commands and 
-            not dry_run and
-            '--dry-run' not in sys.argv):
-            _test_aws_connectivity(app_config, logger)
-            
     except Exception as e:
         console.print(f"[red]Error initializing FinOps Lite: {e}[/red]")
         if verbose:
@@ -205,6 +197,9 @@ def cost_overview(ctx, days, group_by):
                 progress.update(task, description="Generating demo data...")
                 _display_cost_overview_demo(config, days, group_by)
             else:
+                # Test AWS connectivity only when actually needed
+                _test_aws_connectivity(config, logger)
+                
                 # Use real AWS Cost Explorer service
                 from .core.cost_explorer import CostExplorerService
                 cost_service = CostExplorerService(config)
