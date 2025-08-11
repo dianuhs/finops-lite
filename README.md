@@ -27,6 +27,7 @@ AWS_PROFILE=finops-lite python3 -m finops_lite.cli services --days 30 --top 15
 - [Prerequisites](#-prerequisites)
 - [Installation](#-installation)
 - [Usage](#-usage)
+- [CSV export (examples)](#csv-export-examples)
 - [Examples](#-examples)
 - [Troubleshooting](#-troubleshooting)
 - [Contributing](#-contributing)
