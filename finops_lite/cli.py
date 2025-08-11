@@ -1,124 +1,24 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
+import os
 import argparse
 import boto3
+from botocore.exceptions import ClientError
 from collections import defaultdict
 
-# Import rich for beautiful output
+# Optional pretty output with Rich (falls back to plain text if not installed)
 try:
     from rich.console import Console
-    from rich.panel import Panel
     from rich.table import Table
-    from rich.progress import Progress, SpinnerColumn, TextColumn
-    from rich import box
-    RICH_AVAILABLE = True
+    from rich.panel import Panel
+    RICH = True
     console = Console()
-except ImportError:
-    RICH_AVAILABLE = False
+except Exception:
+    RICH = False
     console = None
 
-def show_header():
-    """Show app header"""
-    if console:
-        console.print("\n[bold cyan]🚀 FinOps Lite - AWS Cost Explorer[/bold cyan]\n")
-    else:
-        print("\n🚀 FinOps Lite - AWS Cost Explorer\n")
-
-def show_cost_summary(amount, unit, label, date_range):
-    """Show cost summary with beautiful formatting"""
-    if console:
-        summary = f"💰 {label}: [bold green]${amount:,.2f} {unit}[/bold green]\n📅 Period: {date_range}"
-        panel = Panel(summary, title="🏦 AWS Cost Summary", border_style="blue")
-        console.print(panel)
-    else:
-        print(f"💰 {label}: ${amount:.2f} {unit}")
-        print(f"📅 Period: {date_range}")
-
-def show_services_table(items, unit, start, end, top=15):
-    """Show services in a beautiful table"""
-    if not items:
-        show_error("No service data returned")
-        return
-    
-    days = (end - start).days
-    
-    if console:
-        table = Table(
-            title=f"💸 Top Services - Last {days} Days ({start} → {end})",
-            box=box.ROUNDED,
-            header_style="bold magenta"
-        )
-        
-        table.add_column("Service", style="cyan", min_width=20)
-        table.add_column("Cost", justify="right", style="green")
-        table.add_column("% of Total", justify="right", style="yellow")
-        
-        # Calculate total for percentages
-        total_cost = sum(amt for _, amt in items)
-        
-        # Show top N services
-        display_items = items[:top] if top else items
-        
-        for name, amt in display_items:
-            percentage = (amt / total_cost * 100) if total_cost > 0 else 0
-            table.add_row(
-                name,
-                f"${amt:,.2f}",
-                f"{percentage:.1f}%"
-            )
-        
-        console.print(table)
-        
-        # Show total
-        total_panel = Panel(
-            f"[bold green]Total Cost: ${total_cost:,.2f} {unit}[/bold green]",
-            title="Summary",
-            border_style="green"
-        )
-        console.print(total_panel)
-    else:
-        # Fallback to your original formatting
-        print(f"services — last {days} days: {start} → {end}")
-        display_items = items[:top] if top else items
-        width_name = max(len(k) for k, _v in display_items) if display_items else 10
-        
-        for name, amt in display_items:
-            print(f"{name.ljust(width_name)}  {amt:10.2f} {unit}")
-        
-        total = sum(v for _k, v in display_items)
-        print("-" * (width_name + 16))
-        print(f"{'subtotal'.ljust(width_name)}  {total:10.2f} {unit}")
-
-def show_error(message):
-    """Show error message"""
-    if console:
-        panel = Panel(f"❌ {message}", title="Error", border_style="red")
-        console.print(panel)
-    else:
-        print(f"❌ {message}")
-
-def show_info(message):
-    """Show info message"""
-    if console:
-        panel = Panel(f"ℹ️ {message}", title="Info", border_style="yellow")
-        console.print(panel)
-    else:
-        print(f"ℹ️ {message}")
-
-def show_loading(message="Loading..."):
-    """Show loading spinner"""
-    if console and RICH_AVAILABLE:
-        return Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-            transient=True
-        )
-    else:
-        print(f"⏳ {message}")
-        return None
-
+# ---------- dates ----------
 def first_of_month(d: date) -> date:
     return d.replace(day=1)
 
@@ -128,161 +28,180 @@ def last_month_range(today: date):
     start_prev = first_of_month(last_day_prev)
     return start_prev, start_this  # [start, end)
 
-def ce_client():
-    return boto3.client("ce")
+# ---------- sessions / clients ----------
+def make_session(profile: str | None, region: str | None):
+    return boto3.Session(profile_name=profile, region_name=region)
 
-def get_total_cost(start: date, end: date):
-    """Return (amount, unit). Raises if CE not ready."""
-    resp = ce_client().get_cost_and_usage(
+# ---------- CE helpers ----------
+def fetch_total_cost(ce, start: date, end: date):
+    """Monthly granularity; return (amount, unit)."""
+    resp = ce.get_cost_and_usage(
         TimePeriod={"Start": start.strftime("%Y-%m-%d"), "End": end.strftime("%Y-%m-%d")},
         Granularity="MONTHLY",
         Metrics=["UnblendedCost"],
     )
     r = resp.get("ResultsByTime", [])
     total = r[0]["Total"]["UnblendedCost"] if r else {"Amount": "0", "Unit": "USD"}
-    return float(total["Amount"]), total.get("Unit", "USD")
+    return float(total.get("Amount", "0")), total.get("Unit", "USD")
 
-def get_cost_by_service_last_n_days(days: int = 30):
-    """Sum DAILY UnblendedCost grouped by SERVICE over the last N days."""
-    today = date.today()
-    start = today - timedelta(days=days)
-    end = today  # CE end is exclusive; using today is fine
-    resp = ce_client().get_cost_and_usage(
+def fetch_services_cost(ce, start: date, end: date):
+    """Daily granularity grouped by SERVICE; return (dict service->amount, unit)."""
+    resp = ce.get_cost_and_usage(
         TimePeriod={"Start": start.strftime("%Y-%m-%d"), "End": end.strftime("%Y-%m-%d")},
         Granularity="DAILY",
         Metrics=["UnblendedCost"],
         GroupBy=[{"Type": "DIMENSION", "Key": "SERVICE"}],
     )
-    totals = defaultdict(float)
+    acc = defaultdict(float)
     unit = "USD"
-    for day in resp.get("ResultsByTime", []):
-        for group in day.get("Groups", []):
-            svc = group["Keys"][0]
-            amount = float(group["Metrics"]["UnblendedCost"]["Amount"])
-            unit = group["Metrics"]["UnblendedCost"].get("Unit", unit)
-            totals[svc] += amount
-    # Return sorted list (desc by amount)
-    items = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
-    return items, unit, start, end
+    for bucket in resp.get("ResultsByTime", []):
+        for grp in bucket.get("Groups", []):
+            svc = grp["Keys"][0]
+            amt = float(grp["Metrics"]["UnblendedCost"]["Amount"])
+            unit = grp["Metrics"]["UnblendedCost"].get("Unit", unit)
+            acc[svc] += amt
+    return acc, unit
 
-def do_totals(args):
-    show_header()
+# ---------- CSV ----------
+def write_csv(path, headers, rows):
+    import csv, pathlib
+    p = pathlib.Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(headers)
+        w.writerows(rows)
+
+# ---------- rendering ----------
+def render_total(label: str, amount: float, unit: str, csv_path: str | None = None):
+    if csv_path:
+        write_csv(csv_path, ["Label", "Estimated Total", "Unit"], [[label, f"{amount:.2f}", unit]])
+    if RICH:
+        console.print(Panel.fit(f"[bold]{label}[/bold]\n\n[bold green]${amount:,.2f}[/bold green] {unit}",
+                                title="AWS Total"))
+    else:
+        print(label)
+        print(f"total cost: {amount:.2f} {unit}")
+
+def render_services(services: dict[str, float], unit: str, top: int, csv_path: str | None = None):
+    total = sum(services.values())
+    top_items = sorted(services.items(), key=lambda kv: kv[1], reverse=True)[:top]
+    headers = ["Service", "Est. Cost", "% of Total"]
+    rows = []
+    for svc, amt in top_items:
+        pct = 0 if total == 0 else (amt / total * 100)
+        rows.append([svc, f"${amt:,.2f}", f"{pct:.1f}%"])
+    if csv_path:
+        write_csv(csv_path, headers, rows)
+
+    if RICH:
+        table = Table(title="Top services", show_header=True, header_style="bold")
+        for h in headers:
+            table.add_column(h)
+        for svc, fmt_amt, pct in rows:
+            table.add_row(svc, fmt_amt, pct)
+        console.print(table)
+    else:
+        print("Service                   Est. Cost      % of Total")
+        for svc, fmt_amt, pct in rows:
+            print(f"{svc:25} {fmt_amt:>12} {pct:>10}")
+
+# ---------- argparse ----------
+def add_common_flags(p: argparse.ArgumentParser):
+    p.add_argument("--profile", default=os.getenv("AWS_PROFILE"),
+                   help="AWS config profile (default: env AWS_PROFILE)")
+    p.add_argument("--region", default=os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION"),
+                   help="AWS region (default: env AWS_REGION/AWS_DEFAULT_REGION)")
+    p.add_argument("--csv", metavar="PATH", help="Write the displayed table to CSV at PATH")
+
+def parse_args():
+    parser = argparse.ArgumentParser(prog="finops-lite", description="AWS FinOps Lite")
+    add_common_flags(parser)
+    parser.add_argument("--last-month", action="store_true", help="Force last full month summary")
+    sub = parser.add_subparsers(dest="cmd")
+
+    p_total = sub.add_parser("total", help="Show estimated total for a period")
+    add_common_flags(p_total)
+    p_total.add_argument("--days", type=int, help="Look back N days (e.g., 30)")
+    p_total.add_argument("--from", dest="from_date", help="Start date YYYY-MM-DD")
+    p_total.add_argument("--to", dest="to_date", help="End date YYYY-MM-DD (exclusive)")
+
+    p_services = sub.add_parser("services", help="Top services for a period")
+    add_common_flags(p_services)
+    p_services.add_argument("--days", type=int, default=30)
+    p_services.add_argument("--from", dest="from_date", help="Start date YYYY-MM-DD")
+    p_services.add_argument("--to", dest="to_date", help="End date YYYY-MM-DD (exclusive)")
+    p_services.add_argument("--top", type=int, default=10)
+
+    return parser.parse_args()
+
+def compute_range(args, default_days: int | None = None):
     today = date.today()
-    
-    if args.last_month:
-        start, end = last_month_range(today)
-        progress = show_loading("Fetching last month costs...")
-        
-        if progress:
-            with progress:
-                task = progress.add_task("Loading...", total=None)
-                try:
-                    amt, unit = get_total_cost(start, end)
-                    progress.update(task, completed=100)
-                    show_cost_summary(amt, unit, "Last Full Month", f"{start} → {end}")
-                    return
-                except Exception:
-                    progress.update(task, completed=100)
-        else:
-            try:
-                amt, unit = get_total_cost(start, end)
-                show_cost_summary(amt, unit, "Last Full Month", f"{start} → {end}")
-                return
-            except Exception:
-                pass
-    else:
-        # default: month-to-date with fallback to last month
-        start_mtd = first_of_month(today)
-        progress = show_loading("Fetching month-to-date costs...")
-        
-        if progress:
-            with progress:
-                task = progress.add_task("Loading...", total=None)
-                try:
-                    amt, unit = get_total_cost(start_mtd, today)
-                    progress.update(task, completed=100)
-                    show_cost_summary(amt, unit, "Month-to-Date", f"{start_mtd} → {today}")
-                    return
-                except Exception:
-                    progress.update(task, description="Trying last month as fallback...")
-                    # fallback to last month
-                    start, end = last_month_range(today)
-                    try:
-                        amt, unit = get_total_cost(start, end)
-                        progress.update(task, completed=100)
-                        show_info("Cost Explorer is still ingesting current-month data.\nShowing last full month instead.")
-                        show_cost_summary(amt, unit, "Last Full Month", f"{start} → {end}")
-                        return
-                    except Exception:
-                        progress.update(task, completed=100)
-        else:
-            try:
-                amt, unit = get_total_cost(start_mtd, today)
-                show_cost_summary(amt, unit, "Month-to-Date", f"{start_mtd} → {today}")
-                return
-            except Exception:
-                # fallback to last month
-                start, end = last_month_range(today)
-                try:
-                    amt, unit = get_total_cost(start, end)
-                    show_info("Cost Explorer is still ingesting current-month data.\nShowing last full month instead.")
-                    show_cost_summary(amt, unit, "Last Full Month", f"{start} → {end}")
-                    return
-                except Exception:
-                    pass
-    
-    # Friendly final message if CE isn't ready yet
-    show_error(
-        "Cost Explorer isn't ready on this account yet.\n"
-        "This is normal right after enabling it.\n"
-        "Try again in a few hours (AWS can take up to ~24h on first enable)."
-    )
+    if getattr(args, "from_date", None) and getattr(args, "to_date", None):
+        s = datetime.strptime(args.from_date, "%Y-%m-%d").date()
+        e = datetime.strptime(args.to_date, "%Y-%m-%d").date()
+        return s, e
+    if getattr(args, "days", None):
+        return today - timedelta(days=args.days), today
+    if default_days:
+        return today - timedelta(days=default_days), today
+    return first_of_month(today), today
 
-def do_services(args):
-    show_header()
-    progress = show_loading(f"Fetching service costs for last {args.days} days...")
-    
-    if progress:
-        with progress:
-            task = progress.add_task("Loading...", total=None)
-            try:
-                items, unit, start, end = get_cost_by_service_last_n_days(args.days)
-                progress.update(task, completed=100)
-                show_services_table(items, unit, start, end, top=args.top)
-            except Exception:
-                progress.update(task, completed=100)
-                show_error(
-                    "Couldn't fetch service costs yet — Cost Explorer probably still ingesting.\n"
-                    "Try again later; this will work automatically once CE finishes."
-                )
-    else:
-        try:
-            items, unit, start, end = get_cost_by_service_last_n_days(args.days)
-            show_services_table(items, unit, start, end, top=args.top)
-        except Exception:
-            show_error(
-                "Couldn't fetch service costs yet — Cost Explorer probably still ingesting.\n"
-                "Try again later; this will work automatically once CE finishes."
-            )
-
+# ---------- main ----------
 def main():
-    parser = argparse.ArgumentParser(prog="finops-lite", description="FinOps Lite — tiny AWS cost helper")
-    sub = parser.add_subparsers(dest="command")
+    args = parse_args()
+    sess = make_session(args.profile, args.region)
+    ce = sess.client("ce")
 
-    # totals (default)
-    parser.add_argument("--last-month", action="store_true", help="show last full month instead of month-to-date")
+    try:
+        # subcommand: services
+        if args.cmd == "services":
+            start, end = compute_range(args, default_days=30)
+            svc_map, unit = fetch_services_cost(ce, start, end)
+            render_services(svc_map, unit, args.top, csv_path=args.csv)
+            return
 
-    # services
-    p_svc = sub.add_parser("services", help="show cost by AWS service over the last N days (default 30)")
-    p_svc.add_argument("--days", type=int, default=30, help="number of days to include (default 30)")
-    p_svc.add_argument("--top", type=int, default=15, help="show top N services (default 15)")
+        # subcommand: total
+        if args.cmd == "total":
+            start, end = compute_range(args)
+            amount, unit = fetch_total_cost(ce, start, end)
+            label = f"Period: {start} → {end}"
+            render_total(label, amount, unit, csv_path=args.csv)
+            return
 
-    args = parser.parse_args()
-
-    if args.command == "services":
-        do_services(args)
-    else:
-        do_totals(args)
+        # default summary: MTD with fallback to last full month
+        today = date.today()
+        start_mtd = first_of_month(today)
+        try:
+            amt, unit = fetch_total_cost(ce, start_mtd, today)
+            render_total(f"Month-to-date ({start_mtd} → {today})", amt, unit, csv_path=args.csv)
+            return
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            if code in ("DataUnavailableException", "AccessDeniedException") or args.last_month:
+                start_prev, end_prev = last_month_range(today)
+                try:
+                    amt, unit = fetch_total_cost(ce, start_prev, end_prev)
+                    render_total(f"Last full month ({start_prev} → {end_prev})", amt, unit, csv_path=args.csv)
+                    return
+                except ClientError as e2:
+                    code2 = e2.response.get("Error", {}).get("Code", "")
+                    if code2 in ("DataUnavailableException", "AccessDeniedException"):
+                        msg = "Cost Explorer isn’t ready yet. Try again in a few hours (up to ~24h after first enable)."
+                        if RICH:
+                            console.print(f"[bold red]{msg}[/bold red]")
+                        else:
+                            print(msg)
+                        return
+                    raise
+            raise
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code", "")
+        msg = e.response.get("Error", {}).get("Message", "")
+        if RICH:
+            console.print(f"[bold red]AWS error {code}: {msg}[/bold red]")
+        else:
+            print("unexpected error:", code, msg)
 
 if __name__ == "__main__":
     main()
