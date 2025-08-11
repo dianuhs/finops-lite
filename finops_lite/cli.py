@@ -7,17 +7,6 @@ import boto3
 from botocore.exceptions import ClientError
 from collections import defaultdict
 
-# Optional pretty output with Rich (falls back to plain text if not installed)
-try:
-    from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
-    RICH = True
-    console = Console()
-except Exception:
-    RICH = False
-    console = None
-
 # ---------- dates ----------
 def first_of_month(d: date) -> date:
     return d.replace(day=1)
@@ -28,7 +17,7 @@ def last_month_range(today: date):
     start_prev = first_of_month(last_day_prev)
     return start_prev, start_this  # [start, end)
 
-# ---------- sessions / clients ----------
+# ---------- boto session ----------
 def make_session(profile: str | None, region: str | None):
     return boto3.Session(profile_name=profile, region_name=region)
 
@@ -73,17 +62,15 @@ def write_csv(path, headers, rows):
         w.writerows(rows)
 
 # ---------- rendering ----------
-def render_total(label: str, amount: float, unit: str, csv_path: str | None = None):
-    if csv_path:
-        write_csv(csv_path, ["Label", "Estimated Total", "Unit"], [[label, f"{amount:.2f}", unit]])
-    if RICH:
-        console.print(Panel.fit(f"[bold]{label}[/bold]\n\n[bold green]${amount:,.2f}[/bold green] {unit}",
-                                title="AWS Total"))
-    else:
-        print(label)
-        print(f"total cost: {amount:.2f} {unit}")
+def render_total(args, label: str, amount: float, unit: str):
+    # CSV export
+    if getattr(args, "csv", None):
+        write_csv(args.csv, ["Label", "Estimated Total", "Unit"], [[label, f"{amount:.2f}", unit]])
+    # Print
+    print(label)
+    print(f"Estimated total: ${amount:,.2f} {unit}")
 
-def render_services(services: dict[str, float], unit: str, top: int, csv_path: str | None = None):
+def render_services(args, services: dict[str, float], unit: str, top: int):
     total = sum(services.values())
     top_items = sorted(services.items(), key=lambda kv: kv[1], reverse=True)[:top]
     headers = ["Service", "Est. Cost", "% of Total"]
@@ -91,20 +78,15 @@ def render_services(services: dict[str, float], unit: str, top: int, csv_path: s
     for svc, amt in top_items:
         pct = 0 if total == 0 else (amt / total * 100)
         rows.append([svc, f"${amt:,.2f}", f"{pct:.1f}%"])
-    if csv_path:
-        write_csv(csv_path, headers, rows)
 
-    if RICH:
-        table = Table(title="Top services", show_header=True, header_style="bold")
-        for h in headers:
-            table.add_column(h)
-        for svc, fmt_amt, pct in rows:
-            table.add_row(svc, fmt_amt, pct)
-        console.print(table)
-    else:
-        print("Service                   Est. Cost      % of Total")
-        for svc, fmt_amt, pct in rows:
-            print(f"{svc:25} {fmt_amt:>12} {pct:>10}")
+    # CSV export
+    if getattr(args, "csv", None):
+        write_csv(args.csv, headers, rows)
+
+    # Print
+    print("Service                         Est. Cost      % of Total")
+    for svc, fmt_amt, pct in rows:
+        print(f"{svc:30} {fmt_amt:>12} {pct:>10}")
 
 # ---------- argparse ----------
 def add_common_flags(p: argparse.ArgumentParser):
@@ -158,7 +140,7 @@ def main():
         if args.cmd == "services":
             start, end = compute_range(args, default_days=30)
             svc_map, unit = fetch_services_cost(ce, start, end)
-            render_services(svc_map, unit, args.top, csv_path=args.csv)
+            render_services(args, svc_map, unit, args.top)
             return
 
         # subcommand: total
@@ -166,7 +148,7 @@ def main():
             start, end = compute_range(args)
             amount, unit = fetch_total_cost(ce, start, end)
             label = f"Period: {start} → {end}"
-            render_total(label, amount, unit, csv_path=args.csv)
+            render_total(args, label, amount, unit)
             return
 
         # default summary: MTD with fallback to last full month
@@ -174,7 +156,7 @@ def main():
         start_mtd = first_of_month(today)
         try:
             amt, unit = fetch_total_cost(ce, start_mtd, today)
-            render_total(f"Month-to-date ({start_mtd} → {today})", amt, unit, csv_path=args.csv)
+            render_total(args, f"Month-to-date ({start_mtd} → {today})", amt, unit)
             return
         except ClientError as e:
             code = e.response.get("Error", {}).get("Code", "")
@@ -182,26 +164,19 @@ def main():
                 start_prev, end_prev = last_month_range(today)
                 try:
                     amt, unit = fetch_total_cost(ce, start_prev, end_prev)
-                    render_total(f"Last full month ({start_prev} → {end_prev})", amt, unit, csv_path=args.csv)
+                    render_total(args, f"Last full month ({start_prev} → {end_prev})", amt, unit)
                     return
                 except ClientError as e2:
                     code2 = e2.response.get("Error", {}).get("Code", "")
                     if code2 in ("DataUnavailableException", "AccessDeniedException"):
-                        msg = "Cost Explorer isn’t ready yet. Try again in a few hours (up to ~24h after first enable)."
-                        if RICH:
-                            console.print(f"[bold red]{msg}[/bold red]")
-                        else:
-                            print(msg)
+                        print("Cost Explorer isn’t ready yet. Try again in a few hours (up to ~24h after first enable).")
                         return
                     raise
             raise
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code", "")
         msg = e.response.get("Error", {}).get("Message", "")
-        if RICH:
-            console.print(f"[bold red]AWS error {code}: {msg}[/bold red]")
-        else:
-            print("unexpected error:", code, msg)
+        print("AWS error:", code, msg)
 
 if __name__ == "__main__":
     main()
