@@ -138,8 +138,6 @@ finops-lite total --days 30 --csv out/total.csv
 - [ ] Config file support (e.g., `~/.finops-lite.toml` for defaults)
 - [ ] Unit tests with botocore stubs
 
-> Tip: link each item above to its GitHub Issue once created.
-
 ---
 
 ## Development
