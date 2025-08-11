@@ -124,10 +124,12 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         # Commands that don't need AWS connectivity
         no_aws_commands = ['setup', 'version']
         
-        # Test AWS connectivity only for commands that need it and not in dry-run
+        # Skip AWS connectivity test in dry-run mode or for non-AWS commands
+        # This allows demo mode to work without AWS credentials
         if (ctx.invoked_subcommand and 
             ctx.invoked_subcommand not in no_aws_commands and 
-            not dry_run):
+            not dry_run and
+            '--dry-run' not in sys.argv):
             _test_aws_connectivity(app_config, logger)
             
     except Exception as e:
