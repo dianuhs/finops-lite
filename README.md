@@ -129,6 +129,35 @@ AWS_PROFILE=finops-lite python3 -m finops_lite.cli --last-month
 # Top 15 services for the last 30 days
 AWS_PROFILE=finops-lite python3 -m finops_lite.cli services --days 30 --top 15
 ```
+### CSV export (examples)
+
+Write exactly what you see in the table to a CSV file.
+
+```bash
+# Services table → CSV
+python3 -m finops_lite.cli services --days 30 --top 10 --csv out/services.csv
+
+# Total summary → CSV
+python3 -m finops_lite.cli total --days 30 --csv out/total.csv
+```
+
+**Example: `services.csv` (first few rows)**
+```text
+Service,Est. Cost,% of Total
+Amazon Elastic Compute Cloud - Compute,$612.40,48.0%
+Amazon Simple Storage Service,$241.00,18.9%
+Amazon Relational Database Service,$182.30,14.3%
+```
+
+**Example: `total.csv`**
+```text
+Label,Estimated Total,Unit
+Period: 2025-07-12 → 2025-08-11,1274.89,USD
+```
+
+> Notes:
+> - Change the path after `--csv` to save wherever you like (e.g., `reports/services-2025-08.csv`).
+> - The numbers above are sample values. Your actual output will vary by account.
 
 ### Command Reference
 
