@@ -1,59 +1,91 @@
-# FinOps Lite
+# FinOps Lite 
 
-Minimal, fast CLI to peek at your AWS spend:
-- **Total cost** over a period
-- **Top services** by cost
-- **CSV export** of whatever you see
-- Works with your existing **AWS_PROFILE / AWS_REGION**
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![AWS Cost Explorer](https://img.shields.io/badge/AWS-Cost%20Explorer-orange)](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/)
 
----
+> A simple CLI that shows your AWS spend right in the terminal. Month-to-date totals, last-month fallback, and cost-by-service... all in seconds.
 
-## Quickstart (zero to output in ~60s)
+Cloud bills can get messy fast. Sometimes you just want to know "what's the damage?" without clicking through the AWS console. **FinOps Lite** does exactly that - giving you instant cost visibility from your terminal.
+
+## Quick Start
 
 ```bash
-# install (editable so you can hack on it)
-pip install -e .
+# Install
+python3 -m pip install -e .
 
-# run a couple commands (uses AWS_PROFILE / AWS_REGION if set)
-finops-lite total --days 30
-finops-lite services --days 30 --top 10
+# Get month-to-date total
+AWS_PROFILE=finops-lite python3 -m finops_lite.cli
 
-# optional: export what you see to CSV
-finops-lite services --days 30 --top 10 --csv services.csv
+# View top services for last 30 days
+AWS_PROFILE=finops-lite python3 -m finops_lite.cli services --days 30 --top 15
 ```
 
-**Don’t have AWS set up yet?** No problem — here’s what the output looks like:
+## Table of Contents
 
-**Example:** `finops-lite total --days 30`
+- [Features](#-features)
+- [Prerequisites](#-prerequisites)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Examples](#-examples)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+- [License](#-license)
 
-```text
-Period: last 30 days
-Estimated total: $1,274.89
-Top services: EC2 ($612.40), S3 ($241.00), RDS ($182.30), CloudWatch ($97.20), EBS ($89.99)
+## Features
+
+### Current Features
+- ✅ **Month-to-date totals** - Current month spend with automatic last-month fallback
+- ✅ **Cost by service** - Top N services over the last N days with daily aggregation
+- ✅ **Fast execution** - Get results in seconds, not minutes
+
+### Planned Features
+- ⬜ **Resource audit** - Find untagged and unused resources
+- ⬜ **Tag hygiene score** - Measure and improve your tagging strategy
+- ⬜ **Export options** - CSV, JSON, and PDF export capabilities
+
+## Prerequisites
+
+Before you start, make sure you have:
+
+1. **Python 3.9 or higher**
+   ```bash
+   python3 --version  # Should be 3.9+
+   ```
+
+2. **AWS Account with Cost Explorer enabled**
+   - Go to [AWS Cost Explorer](https://console.aws.amazon.com/cost-reports/home?#/costexplorer)
+   - Click "Enable Cost Explorer" if not already enabled
+   - ⚠️ **Note**: It takes up to 24 hours for data to become available after first enabling
+
+3. **AWS CLI configured**
+   ```bash
+   aws --version  # AWS CLI should be installed
+   ```
+
+## Installation
+
+### Step 1: Clone the Repository
+```bash
+git clone https://github.com/dianuhs/finops-lite.git
+cd finops-lite
 ```
 
-**Example:** `finops-lite services --days 30 --top 5`
-
-```text
-Service     Est. Cost   % of Total
-EC2         $612.40     48.0%
-S3          $241.00     18.9%
-RDS         $182.30     14.3%
-CloudWatch  $97.20      7.6%
-EBS         $89.99      7.1%
+### Step 2: Install the Package
+```bash
+python3 -m pip install -e .
 ```
 
----
+### Step 3: Set Up AWS Credentials
 
-## Connect to your AWS (prereqs)
+Create a **read-only IAM user** for security:
 
-1) **Install Python 3.9+**
+1. **Create IAM User:**
+   - Go to AWS Console → IAM → Users → Add User
+   - Choose "Programmatic access" only
+   - **Do not** give console access
 
-2) **Turn on AWS Cost Explorer** in your account  
-   *Billing → Cost Management → Cost Explorer → Enable.*
-
-3) **Create a read-only IAM user (programmatic access only)**  
-   Attach a minimal policy (least privilege) for Cost Explorer:
+2. **Attach the following IAM policy:**
    ```json
    {
      "Version": "2012-10-17",
@@ -62,6 +94,8 @@ EBS         $89.99      7.1%
          "Effect": "Allow",
          "Action": [
            "ce:GetCostAndUsage",
+           "ce:GetUsageAndCosts",
+           "ce:GetCostCategories",
            "ce:GetDimensionValues"
          ],
          "Resource": "*"
@@ -69,100 +103,105 @@ EBS         $89.99      7.1%
      ]
    }
    ```
-   > Planning to use **Audit mode** later? You’ll also need EC2 read-only:
-   > `ec2:DescribeInstances`, `ec2:DescribeVolumes`, `ec2:DescribeAddresses`, `ec2:DescribeTags`.
 
-4) **Configure your AWS CLI profile** (example: `finops-lite`)
+3. **Configure AWS CLI profile:**
+   ```bash
+   aws configure --profile finops-lite
+   # Enter your Access Key ID and Secret Access Key
+   ```
 
-```bash
-aws configure --profile finops-lite
-# paste Access key & Secret
-# choose a default region, e.g., us-east-1
-```
-
-5) **Run with that profile**
-
-```bash
-finops-lite total --days 30 --profile finops-lite
-finops-lite services --days 30 --top 10 --profile finops-lite
-```
-
----
+4. **Test the setup:**
+   ```bash
+   AWS_PROFILE=finops-lite aws sts get-caller-identity
+   ```
 
 ## Usage
 
-Global flags (available on all commands):
-- `--profile` — AWS config profile (defaults to `AWS_PROFILE` if set)
-- `--region` — AWS region (defaults to `AWS_REGION`/`AWS_DEFAULT_REGION` if set)
-- `--csv PATH` — write the displayed table to a CSV at `PATH`
-
-Commands:
-
-### `total` — estimated total for a period
+### Basic Commands
 
 ```bash
-# last 30 days
-finops-lite total --days 30
+# Month-to-date total (with fallback to last month)
+AWS_PROFILE=finops-lite python3 -m finops_lite.cli
 
-# custom date range
-finops-lite total --from 2025-01-01 --to 2025-01-31
+# Last month's total
+AWS_PROFILE=finops-lite python3 -m finops_lite.cli --last-month
+
+# Top 15 services for the last 30 days
+AWS_PROFILE=finops-lite python3 -m finops_lite.cli services --days 30 --top 15
 ```
 
-### `services` — top-N services by cost for a period
+### Command Reference
 
-```bash
-# top 10 services in the last 30 days
-finops-lite services --days 30 --top 10
+| Command | Description | Example |
+|---------|-------------|---------|
+| `cli` | Show month-to-date total | `python3 -m finops_lite.cli` |
+| `cli --last-month` | Show last month's total | `python3 -m finops_lite.cli --last-month` |
+| `cli services` | Show cost by service | `python3 -m finops_lite.cli services --days 7 --top 10` |
 
-# last 7 days, top 5
-finops-lite services --days 7 --top 5
+### Options
+
+- `--days N`: Number of days to analyze (default: 30)
+- `--top N`: Number of top services to show (default: 10)
+- `--last-month`: Show last month instead of current month
+
+## Examples
+
+### Example Output: Month-to-Date Total
+```
+Month-to-Date AWS Spend: $1,234.56
+Period: December 1-15, 2024
 ```
 
-### CSV export (any command)
-
-```bash
-# export what you're seeing to CSV
-finops-lite services --days 30 --top 10 --csv out/services.csv
-finops-lite total --days 30 --csv out/total.csv
+### Example Output: Top Services
+```
+Top 5 Services (Last 30 Days):
+1. EC2-Instance          $456.78
+2. S3                    $234.56
+3. RDS                   $123.45
+4. CloudFront            $67.89
+5. Lambda                $23.45
 ```
 
----
+## Troubleshooting
 
-## Project status / roadmap
+### Common Issues
 
-- [ ] CSV export for totals
-- [ ] CSV export for services
-- [ ] Audit mode: flag waste (stopped EC2, unattached EBS, unused EIPs, untagged)
-- [ ] 6-month trend view (group by month)
-- [ ] Better `--help` UX (clear subcommands & flags)
-- [ ] Config file support (e.g., `~/.finops-lite.toml` for defaults)
-- [ ] Unit tests with botocore stubs
+#### "Data is not available"
+**Problem**: You just enabled Cost Explorer  
+**Solution**: Wait up to 24 hours for AWS to ingest your billing data, then try again.
 
----
+#### "Access Denied"
+**Problem**: IAM permissions are insufficient  
+**Solution**: Ensure your IAM user has the Cost Explorer permissions listed above.
 
-## Development
+#### "Profile not found"
+**Problem**: AWS profile isn't configured  
+**Solution**: Run `aws configure --profile finops-lite` to set up your credentials.
 
-```bash
-# install dev copy
-pip install -e .
+#### "No data returned"
+**Problem**: Your AWS account might have no spend in the time period  
+**Solution**: Try `--last-month` or adjust the `--days` parameter.
 
-# run tests (CI uses this too)
-pytest -q
+## Pro Tips
 
-# try the CLI
-finops-lite --help
-```
+1. **Minimize API costs**: AWS charges ~$0.01 per Cost Explorer API call. Keep runs small during testing.
 
----
+2. **Set up aliases**: Add to your `.bashrc` or `.zshrc`:
+   ```bash
+   alias awscost="AWS_PROFILE=finops-lite python3 -m finops_lite.cli"
+   alias awsservices="AWS_PROFILE=finops-lite python3 -m finops_lite.cli services"
+   ```
 
-## Notes
+3. **Regular monitoring**: Run this tool daily/weekly to stay on top of your AWS spend.
 
-- This is a **lite** helper aimed at fast feedback and simple exports.
-- Numbers are estimates; always confirm against AWS Billing.
-- Contributions welcome — open an Issue or PR.
+## Contributing
 
----
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## License
 
-This project is licensed under the terms of the license in `LICENSE`.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Show Your Support
+
+If this tool helps you manage your AWS costs, please give it a star! It helps others discover the project.
