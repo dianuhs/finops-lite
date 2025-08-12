@@ -1,0 +1,16 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include requirements.txt
+include pyproject.toml
+recursive-include finops_lite *.py
+recursive-include finops_lite *.yaml
+recursive-include finops_lite *.yml
+recursive-include finops_lite *.json
+recursive-include config *.yaml
+recursive-include config *.yml
+exclude tests/*
+exclude .github/*
+exclude docs/*
+exclude *.pyc
+exclude .DS_Store
