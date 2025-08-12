@@ -8,7 +8,6 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
-from .reports.formatters import ReportFormatter
 
 from rich.console import Console
 from rich.table import Table
@@ -20,6 +19,7 @@ from rich.text import Text
 
 from .utils.config import load_config, FinOpsConfig
 from .utils.logger import setup_logger
+from .reports.formatters import ReportFormatter
 
 # Global console for rich output
 console = Console()
@@ -64,7 +64,7 @@ class FinOpsContext:
 )
 @click.option(
     '--output-format',
-    type=click.Choice(['table', 'json', 'csv', 'yaml'], case_sensitive=False),
+    type=click.Choice(['table', 'json', 'csv', 'yaml', 'executive'], case_sensitive=False),
     help='Output format'
 )
 @click.option(
@@ -81,7 +81,8 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
     
     Examples:
       finops cost overview                    # Get cost overview
-      finops cost by-service --days 7        # Service costs (7 days)
+      finops cost overview --format json     # JSON output
+      finops cost overview --export report.csv # Export to CSV
       finops tags compliance                  # Tag compliance report
       finops optimize rightsizing            # EC2 rightsizing recommendations
     """
@@ -122,15 +123,6 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         ctx.obj.verbose = verbose
         ctx.obj.dry_run = dry_run
         
-        # Commands that don't need AWS connectivity
-        no_aws_commands = ['setup', 'version']
-        
-        # Test AWS connectivity only for commands that need it
-        if (ctx.invoked_subcommand and 
-            ctx.invoked_subcommand not in no_aws_commands and 
-            not dry_run):
-            _test_aws_connectivity(app_config, logger)
-            
     except Exception as e:
         console.print(f"[red]Error initializing FinOps Lite: {e}[/red]")
         if verbose:
@@ -184,55 +176,97 @@ def cost(ctx):
     default='SERVICE',
     help='Group costs by dimension'
 )
+@click.option(
+    '--format', 'output_format',
+    type=click.Choice(['table', 'json', 'csv', 'yaml', 'executive'], case_sensitive=False),
+    help='Output format (overrides global setting)'
+)
+@click.option(
+    '--export', 'export_file',
+    help='Export report to file (e.g., report.json, costs.csv)'
+)
 @click.pass_context
-def cost_overview(ctx, days, group_by):
-    """Get a comprehensive cost overview."""
+def cost_overview(ctx, days, group_by, output_format, export_file):
+    """Get a comprehensive cost overview with multiple output formats."""
     config = ctx.obj.config
     logger = ctx.obj.logger
     dry_run = ctx.obj.dry_run
     
+    # Override format if specified
+    if output_format:
+        config.output.format = output_format
+    
+    # Create formatter
+    formatter = ReportFormatter(config, console)
+    
+    # Create demo data structure
+    demo_data = {
+        'period_days': days,
+        'total_cost': 2847.23,
+        'daily_average': 2847.23 / days,
+    }
+    
     if dry_run:
-        # Dry-run mode - show demo data without AWS
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Generating demo data...", total=None)
+        # Show format-specific output
+        if config.output.format == 'table':
+            # Show the beautiful Rich output we already have
+            console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
             
-            # Demo summary
-            summary_text = f"""
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Generating demo data...", total=None)
+                
+                # Demo summary
+                summary_text = f"""
 [bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
 [bold]Total Cost:[/bold] [green]$2,847.23[/green]
 [bold]Daily Average:[/bold] $94.91
 [bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
 """
-            
-            console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
-            
-            # Demo table
-            table = Table(title="💸 Top AWS Services (Demo)")
-            table.add_column("Service", style="cyan", no_wrap=True)
-            table.add_column("Cost", style="green", justify="right")
-            table.add_column("% of Total", style="yellow", justify="right")
-            table.add_column("Trend", justify="center")
-            
-            demo_services = [
-                ("Amazon EC2", "$1,234.56", "43.4%", "[red]↗[/red]"),
-                ("Amazon RDS", "$543.21", "19.1%", "[green]↘[/green]"),
-                ("Amazon S3", "$321.45", "11.3%", "[blue]→[/blue]"),
-                ("AWS Lambda", "$198.76", "7.0%", "[green]↘[/green]"),
-                ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
-            ]
-            
-            for service, cost, percent, trend in demo_services:
-                table.add_row(service, cost, percent, trend)
-            
-            console.print(table)
-            console.print("\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]")
+                
+                console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
+                
+                # Demo table
+                table = Table(title="💸 Top AWS Services (Demo)")
+                table.add_column("Service", style="cyan", no_wrap=True)
+                table.add_column("Cost", style="green", justify="right")
+                table.add_column("% of Total", style="yellow", justify="right")
+                table.add_column("Trend", justify="center")
+                
+                demo_services = [
+                    ("Amazon EC2", "$1,234.56", "43.4%", "[red]↗[/red]"),
+                    ("Amazon RDS", "$543.21", "19.1%", "[green]↘[/green]"),
+                    ("Amazon S3", "$321.45", "11.3%", "[blue]→[/blue]"),
+                    ("AWS Lambda", "$198.76", "7.0%", "[green]↘[/green]"),
+                    ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
+                ]
+                
+                for service, cost, percent, trend in demo_services:
+                    table.add_row(service, cost, percent, trend)
+                
+                console.print(table)
+                console.print("\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]")
+        
+        else:
+            # Use new formatter for other formats
+            console.print(f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]")
+            content = formatter.format_cost_overview(demo_data, config.output.format)
+            if content:
+                console.print(content)
+        
+        # Handle export
+        if export_file:
+            content = formatter.format_cost_overview(demo_data, config.output.format)
+            if content:
+                formatter.save_report(content, export_file, config.output.format)
+                console.print(f"[green]Demo report exported to: {export_file}[/green]")
+        
         return
     
-    # Real AWS mode (existing code)
+    # Real AWS mode would go here (keeping existing logic)
     try:
         with Progress(
             SpinnerColumn(),
@@ -249,8 +283,21 @@ def cost_overview(ctx, days, group_by):
             cost_analysis = cost_service.get_monthly_cost_overview(days)
             progress.update(task, description="Formatting results...")
             
-            # Display real cost data (existing function)
-            _display_cost_overview_real(config, cost_analysis, group_by)
+            # Format and display/export based on format
+            if config.output.format == 'table':
+                # Use existing beautiful table display
+                _display_cost_overview_real(config, cost_analysis, group_by)
+            else:
+                # Use new formatter for other formats
+                content = formatter.format_cost_overview(cost_analysis, config.output.format)
+                if content:
+                    console.print(content)
+            
+            # Handle export for real data
+            if export_file:
+                content = formatter.format_cost_overview(cost_analysis, config.output.format)
+                if content:
+                    formatter.save_report(content, export_file, config.output.format)
             
     except Exception as e:
         console.print(f"[red]Error getting cost overview: {e}[/red]")
@@ -259,6 +306,7 @@ def cost_overview(ctx, days, group_by):
         else:
             console.print("[yellow]Tip: Use --verbose for detailed error information[/yellow]")
         sys.exit(1)
+
 
 def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group_by: str):
     """Display real cost overview from AWS Cost Explorer."""
@@ -359,7 +407,7 @@ def _show_optimization_opportunities(service_breakdown: list, format_cost):
     # RDS optimization
     rds_services = [s for s in service_breakdown if 'RDS' in s.service_name.upper()]
     if rds_services:
-        total_rds_cost = sum(s.total_cost for s in rds_services)
+        total_rds_cost = sum(s.total_rds_cost for s in rds_services)
         if total_rds_cost > 30:  # > $30
             opportunities.append(f"• [yellow]RDS Optimization:[/yellow] {format_cost(total_rds_cost)} in RDS costs - review instance types and storage")
     
