@@ -188,7 +188,50 @@ def cost_overview(ctx, days, group_by):
     """Get a comprehensive cost overview."""
     config = ctx.obj.config
     logger = ctx.obj.logger
+    dry_run = ctx.obj.dry_run
     
+    if dry_run:
+        # Dry-run mode - show demo data without AWS
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Generating demo data...", total=None)
+            
+            # Demo summary
+            summary_text = f"""
+[bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
+[bold]Total Cost:[/bold] [green]$2,847.23[/green]
+[bold]Daily Average:[/bold] $94.91
+[bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
+"""
+            
+            console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
+            
+            # Demo table
+            table = Table(title="💸 Top AWS Services (Demo)")
+            table.add_column("Service", style="cyan", no_wrap=True)
+            table.add_column("Cost", style="green", justify="right")
+            table.add_column("% of Total", style="yellow", justify="right")
+            table.add_column("Trend", justify="center")
+            
+            demo_services = [
+                ("Amazon EC2", "$1,234.56", "43.4%", "[red]↗[/red]"),
+                ("Amazon RDS", "$543.21", "19.1%", "[green]↘[/green]"),
+                ("Amazon S3", "$321.45", "11.3%", "[blue]→[/blue]"),
+                ("AWS Lambda", "$198.76", "7.0%", "[green]↘[/green]"),
+                ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
+            ]
+            
+            for service, cost, percent, trend in demo_services:
+                table.add_row(service, cost, percent, trend)
+            
+            console.print(table)
+            console.print("\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]")
+        return
+    
+    # Real AWS mode (existing code)
     try:
         with Progress(
             SpinnerColumn(),
@@ -202,13 +245,10 @@ def cost_overview(ctx, days, group_by):
             cost_service = CostExplorerService(config)
             
             progress.update(task, description="Analyzing costs...")
-            
-            # Get real cost data
             cost_analysis = cost_service.get_monthly_cost_overview(days)
-            
             progress.update(task, description="Formatting results...")
             
-            # Display real cost data
+            # Display real cost data (existing function)
             _display_cost_overview_real(config, cost_analysis, group_by)
             
     except Exception as e:
@@ -218,7 +258,6 @@ def cost_overview(ctx, days, group_by):
         else:
             console.print("[yellow]Tip: Use --verbose for detailed error information[/yellow]")
         sys.exit(1)
-
 
 def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group_by: str):
     """Display real cost overview from AWS Cost Explorer."""
