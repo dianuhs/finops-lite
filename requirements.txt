@@ -1,0 +1,6 @@
+boto3>=1.34.0
+click>=8.1.7
+rich>=13.7.0
+pydantic>=2.5.0
+PyYAML>=6.0.1
+python-dateutil>=2.8.2
