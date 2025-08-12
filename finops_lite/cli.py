@@ -135,7 +135,7 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
     help='Number of days to analyze (default: 30)'
 )
 @click.pass_context
-def demo_command(ctx, days):
+def demo(ctx, days):
     """Show beautiful demo cost data without AWS."""
     config = ctx.obj.config
     
@@ -277,7 +277,7 @@ def cost_overview(ctx, days, group_by):
     if dry_run:
         # In dry-run mode, just call the demo command
         console.print("[yellow]Running in dry-run mode - showing demo data[/yellow]")
-        ctx.invoke(demo_command, days=days)
+        ctx.invoke(demo, days=days)
         return
     
     # For real AWS mode
@@ -311,7 +311,7 @@ def cost_overview(ctx, days, group_by):
     except Exception as e:
         console.print(f"[red]Error getting cost overview: {e}[/red]")
         console.print("[yellow]Falling back to demo data...[/yellow]")
-        ctx.invoke(demo_command, days=days)
+        ctx.invoke(demo, days=days)
 
 
 @cli.group()
