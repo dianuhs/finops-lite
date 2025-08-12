@@ -139,6 +139,22 @@ def overview(ctx, days):
     else:
         console.print("[red]Real AWS mode not implemented yet. Use 'demo' command.[/red]")
 
+@cli.command('demo')
+@click.option('--days', '-d', default=30, type=int, help='Number of days to analyze')
+def demo_simple(days):
+    """Show demo cost data."""
+    console.print("[bold blue]Demo Cost Overview[/bold blue]")
+    
+    table = Table(title="💸 Demo AWS Costs")
+    table.add_column("Service", style="cyan")
+    table.add_column("Cost", style="green", justify="right")
+    
+    table.add_row("Amazon EC2", "$1,234.56")
+    table.add_row("Amazon RDS", "$543.21") 
+    table.add_row("Amazon S3", "$321.45")
+    
+    console.print(table)
+    console.print("✅ Demo mode working!")
 
 def main():
     """Main entry point for the CLI."""
