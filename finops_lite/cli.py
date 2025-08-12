@@ -19,6 +19,7 @@ from rich.text import Text
 
 from .utils.config import load_config, FinOpsConfig
 from .utils.logger import setup_logger
+from .utils.errors import handle_error, validate_days, ValidationError, AWSCredentialsError
 from .reports.formatters import ReportFormatter
 
 # Global console for rich output
@@ -123,13 +124,8 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         ctx.obj.verbose = verbose
         ctx.obj.dry_run = dry_run
         
-        # Skip AWS connectivity test entirely for demo purposes
-        # Real AWS testing will happen inside individual commands when needed
-        
     except Exception as e:
-        console.print(f"[red]Error initializing FinOps Lite: {e}[/red]")
-        if verbose:
-            console.print_exception()
+        handle_error(e, verbose)
         sys.exit(1)
 
 
@@ -154,9 +150,7 @@ def _test_aws_connectivity(config: FinOpsConfig, logger):
             console.print(table)
             
     except Exception as e:
-        console.print(f"[red]AWS connectivity test failed: {e}[/red]")
-        console.print("[yellow]Tip: Check your AWS credentials and permissions[/yellow]")
-        sys.exit(1)
+        raise AWSCredentialsError(f"Unable to locate credentials: {e}")
 
 
 @cli.group()
@@ -171,7 +165,8 @@ def cost(ctx):
     '--days', '-d',
     default=30,
     type=int,
-    help='Number of days to analyze (default: 30)'
+    help='Number of days to analyze (default: 30)',
+    callback=lambda ctx, param, value: validate_days(value) if value else 30
 )
 @click.option(
     '--group-by',
@@ -195,116 +190,120 @@ def cost_overview(ctx, days, group_by, output_format, export_file):
     logger = ctx.obj.logger
     dry_run = ctx.obj.dry_run
     
-    # Override format if specified
-    if output_format:
-        config.output.format = output_format
-    
-    if dry_run:
-        # Check if non-table format requested
-        if config.output.format != 'table':
-            formatter = ReportFormatter(config, console)
-            demo_data = {
-                'period_days': days, 
-                'total_cost': 2847.23, 
-                'daily_average': 94.91
-            }
-            console.print(f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]")
-            content = formatter.format_cost_overview(demo_data, config.output.format)
-            if content:
-                console.print(content)
-                
-            # Handle export
-            if export_file:
-                formatter.save_report(content, export_file, config.output.format)
-                console.print(f"[green]Demo report exported to: {export_file}[/green]")
-            return
+    try:
+        # Override format if specified
+        if output_format:
+            config.output.format = output_format
         
-        # Existing beautiful table format (unchanged)
-        console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
-        
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Generating demo data...", total=None)
+        if dry_run:
+            # Check if non-table format requested
+            if config.output.format != 'table':
+                formatter = ReportFormatter(config, console)
+                demo_data = {
+                    'period_days': days, 
+                    'total_cost': 2847.23, 
+                    'daily_average': 94.91
+                }
+                console.print(f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]")
+                content = formatter.format_cost_overview(demo_data, config.output.format)
+                if content:
+                    console.print(content)
+                    
+                # Handle export
+                if export_file:
+                    formatter.save_report(content, export_file, config.output.format)
+                    console.print(f"[green]Demo report exported to: {export_file}[/green]")
+                return
             
-            # Demo summary
-            summary_text = f"""
+            # Existing beautiful table format (unchanged)
+            console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
+            
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Generating demo data...", total=None)
+                
+                # Demo summary
+                summary_text = f"""
 [bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
 [bold]Total Cost:[/bold] [green]$2,847.23[/green]
 [bold]Daily Average:[/bold] $94.91
 [bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
 """
-            
-            console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
-            
-            # Demo table
-            table = Table(title="💸 Top AWS Services (Demo)")
-            table.add_column("Service", style="cyan", no_wrap=True)
-            table.add_column("Cost", style="green", justify="right")
-            table.add_column("% of Total", style="yellow", justify="right")
-            table.add_column("Trend", justify="center")
-            
-            demo_services = [
-                ("Amazon EC2", "$1,234.56", "43.4%", "[red]↗[/red]"),
-                ("Amazon RDS", "$543.21", "19.1%", "[green]↘[/green]"),
-                ("Amazon S3", "$321.45", "11.3%", "[blue]→[/blue]"),
-                ("AWS Lambda", "$198.76", "7.0%", "[green]↘[/green]"),
-                ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
-            ]
-            
-            for service, cost, percent, trend in demo_services:
-                table.add_row(service, cost, percent, trend)
-            
-            console.print(table)
-            console.print("\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]")
-        return
-    
-    # Real AWS mode (existing code)
-    try:
-        # Test AWS connectivity only when actually needed
-        _test_aws_connectivity(config, logger)
+                
+                console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
+                
+                # Demo table
+                table = Table(title="💸 Top AWS Services (Demo)")
+                table.add_column("Service", style="cyan", no_wrap=True)
+                table.add_column("Cost", style="green", justify="right")
+                table.add_column("% of Total", style="yellow", justify="right")
+                table.add_column("Trend", justify="center")
+                
+                demo_services = [
+                    ("Amazon EC2", "$1,234.56", "43.4%", "[red]↗[/red]"),
+                    ("Amazon RDS", "$543.21", "19.1%", "[green]↘[/green]"),
+                    ("Amazon S3", "$321.45", "11.3%", "[blue]→[/blue]"),
+                    ("AWS Lambda", "$198.76", "7.0%", "[green]↘[/green]"),
+                    ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
+                ]
+                
+                for service, cost, percent, trend in demo_services:
+                    table.add_row(service, cost, percent, trend)
+                
+                console.print(table)
+                console.print("\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]")
+            return
         
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Fetching cost data...", total=None)
+        # Real AWS mode
+        try:
+            # Test AWS connectivity only when actually needed
+            _test_aws_connectivity(config, logger)
             
-            # Use real AWS Cost Explorer service
-            from .core.cost_explorer import CostExplorerService
-            cost_service = CostExplorerService(config)
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Fetching cost data...", total=None)
+                
+                # Use real AWS Cost Explorer service
+                from .core.cost_explorer import CostExplorerService
+                cost_service = CostExplorerService(config)
+                
+                progress.update(task, description="Analyzing costs...")
+                cost_analysis = cost_service.get_monthly_cost_overview(days)
+                progress.update(task, description="Formatting results...")
+                
+                # Format and display based on format
+                if config.output.format == 'table':
+                    # Use existing beautiful table display
+                    _display_cost_overview_real(config, cost_analysis, group_by)
+                else:
+                    # Use new formatter for other formats
+                    formatter = ReportFormatter(config, console)
+                    content = formatter.format_cost_overview(cost_analysis, config.output.format)
+                    if content:
+                        console.print(content)
+                
+                # Handle export for real data
+                if export_file:
+                    formatter = ReportFormatter(config, console)
+                    content = formatter.format_cost_overview(cost_analysis, config.output.format)
+                    if content:
+                        formatter.save_report(content, export_file, config.output.format)
+                
+        except AWSCredentialsError as e:
+            handle_error(e, config.output.verbose)
+            sys.exit(1)
             
-            progress.update(task, description="Analyzing costs...")
-            cost_analysis = cost_service.get_monthly_cost_overview(days)
-            progress.update(task, description="Formatting results...")
-            
-            # Format and display based on format
-            if config.output.format == 'table':
-                # Use existing beautiful table display
-                _display_cost_overview_real(config, cost_analysis, group_by)
-            else:
-                # Use new formatter for other formats
-                formatter = ReportFormatter(config, console)
-                content = formatter.format_cost_overview(cost_analysis, config.output.format)
-                if content:
-                    console.print(content)
-            
-            # Handle export for real data
-            if export_file:
-                formatter = ReportFormatter(config, console)
-                content = formatter.format_cost_overview(cost_analysis, config.output.format)
-                if content:
-                    formatter.save_report(content, export_file, config.output.format)
-            
+    except ValidationError as e:
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
     except Exception as e:
-        console.print(f"[red]Error getting cost overview: {e}[/red]")
-        if config.output.verbose:
-            console.print_exception()
-        else:
-            console.print("[yellow]Tip: Use --verbose for detailed error information[/yellow]")
+        handle_error(e, config.output.verbose)
         sys.exit(1)
 
 
@@ -462,7 +461,7 @@ def tag_compliance(ctx, service, fix):
             _display_tag_compliance_mock(config, service, fix)
             
     except Exception as e:
-        console.print(f"[red]Error checking tag compliance: {e}[/red]")
+        handle_error(e, config.output.verbose)
         sys.exit(1)
 
 
@@ -529,6 +528,10 @@ def rightsizing_recommendations(ctx, service, savings_threshold):
     config = ctx.obj.config
     
     try:
+        # Validate savings threshold
+        if savings_threshold < 0:
+            raise ValidationError("Savings threshold must be positive")
+            
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -538,8 +541,11 @@ def rightsizing_recommendations(ctx, service, savings_threshold):
             
             _display_rightsizing_mock(config, service, savings_threshold)
             
+    except ValidationError as e:
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
     except Exception as e:
-        console.print(f"[red]Error getting rightsizing recommendations: {e}[/red]")
+        handle_error(e, config.output.verbose)
         sys.exit(1)
 
 
@@ -583,34 +589,40 @@ def _display_rightsizing_mock(config: FinOpsConfig, service: str, threshold: flo
 )
 def setup_config(interactive):
     """🔧 Set up FinOps Lite configuration."""
-    if interactive:
-        console.print("[bold blue]🔧 FinOps Lite Setup Wizard[/bold blue]")
-        console.print("This will help you configure FinOps Lite for your AWS environment.\n")
-        
-        # Interactive setup would go here
-        console.print("[green]Interactive setup coming soon![/green]")
-        console.print("For now, copy the template from config/templates/finops.yaml")
-    else:
-        console.print("Configuration template available at: config/templates/finops.yaml")
-        console.print("Copy it to one of these locations:")
-        console.print("  • ./finops.yaml")
-        console.print("  • ~/.config/finops/config.yaml")
-        console.print("  • ~/.finops.yaml")
+    try:
+        if interactive:
+            console.print("[bold blue]🔧 FinOps Lite Setup Wizard[/bold blue]")
+            console.print("This will help you configure FinOps Lite for your AWS environment.\n")
+            
+            # Interactive setup would go here
+            console.print("[green]Interactive setup coming soon![/green]")
+            console.print("For now, copy the template from config/templates/finops.yaml")
+        else:
+            console.print("Configuration template available at: config/templates/finops.yaml")
+            console.print("Copy it to one of these locations:")
+            console.print("  • ./finops.yaml")
+            console.print("  • ~/.config/finops/config.yaml")
+            console.print("  • ~/.finops.yaml")
+    except Exception as e:
+        handle_error(e, verbose=False)
 
 
 @cli.command('version')
 def version():
     """Show version information."""
-    from . import __version__
-    
-    version_text = f"""
+    try:
+        from . import __version__
+        
+        version_text = f"""
 [bold]FinOps Lite[/bold] v{__version__}
 [dim]Professional AWS cost management CLI[/dim]
 
 Built with ❤️  for cloud cost optimization
 """
-    
-    console.print(Panel(version_text, title="📦 Version Info", border_style="blue"))
+        
+        console.print(Panel(version_text, title="📦 Version Info", border_style="blue"))
+    except Exception as e:
+        handle_error(e, verbose=False)
 
 
 def main():
@@ -621,7 +633,7 @@ def main():
         console.print("\n[yellow]Operation cancelled by user[/yellow]")
         sys.exit(1)
     except Exception as e:
-        console.print(f"[red]Unexpected error: {e}[/red]")
+        handle_error(e, verbose=False)
         sys.exit(1)
 
 
