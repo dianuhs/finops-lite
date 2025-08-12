@@ -20,10 +20,10 @@
 ```
 ╭──────────────────── 📊 Cost Summary (Demo) ─────────────────────╮
 │                                                                 │
-│ Period: Last 30 days (DEMO DATA)                               │
-│ Total Cost: $2,847.23                                          │
-│ Daily Average: $94.91                                          │
-│ Trend: ↗ +12.3% vs previous period                             │
+│ Period: Last 30 days (DEMO DATA)                                │
+│ Total Cost: $2,847.23                                           │
+│ Daily Average: $94.91                                           │
+│ Trend: ↗ +12.3% vs previous period                              │
 │                                                                 │
 ╰─────────────────────────────────────────────────────────────────╯
 
@@ -314,5 +314,6 @@ Contributions welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for d
 **Built with ❤️ for cloud cost optimization**
 
 *Professional AWS FinOps made simple.*
+
 
 
