@@ -123,6 +123,9 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         ctx.obj.verbose = verbose
         ctx.obj.dry_run = dry_run
         
+        # Skip AWS connectivity test entirely for demo purposes
+        # Real AWS testing will happen inside individual commands when needed
+        
     except Exception as e:
         console.print(f"[red]Error initializing FinOps Lite: {e}[/red]")
         if verbose:
@@ -266,8 +269,11 @@ def cost_overview(ctx, days, group_by, output_format, export_file):
         
         return
     
-    # Real AWS mode would go here (keeping existing logic)
+    # Real AWS mode (existing code)
     try:
+        # Test AWS connectivity only when actually needed
+        _test_aws_connectivity(config, logger)
+        
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -285,7 +291,7 @@ def cost_overview(ctx, days, group_by, output_format, export_file):
             
             # Format and display/export based on format
             if config.output.format == 'table':
-                # Use existing beautiful table display
+                # Use existing _display_cost_overview_real function
                 _display_cost_overview_real(config, cost_analysis, group_by)
             else:
                 # Use new formatter for other formats
@@ -407,7 +413,7 @@ def _show_optimization_opportunities(service_breakdown: list, format_cost):
     # RDS optimization
     rds_services = [s for s in service_breakdown if 'RDS' in s.service_name.upper()]
     if rds_services:
-        total_rds_cost = sum(s.total_rds_cost for s in rds_services)
+        total_rds_cost = sum(s.total_cost for s in rds_services)
         if total_rds_cost > 30:  # > $30
             opportunities.append(f"• [yellow]RDS Optimization:[/yellow] {format_cost(total_rds_cost)} in RDS costs - review instance types and storage")
     
