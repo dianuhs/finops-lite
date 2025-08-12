@@ -19,6 +19,7 @@ from rich.text import Text
 
 from .utils.config import load_config, FinOpsConfig
 from .utils.logger import setup_logger
+from .reports.formatters import ReportFormatter
 
 # Global console for rich output
 console = Console()
@@ -63,7 +64,7 @@ class FinOpsContext:
 )
 @click.option(
     '--output-format',
-    type=click.Choice(['table', 'json', 'csv', 'yaml'], case_sensitive=False),
+    type=click.Choice(['table', 'json', 'csv', 'yaml', 'executive'], case_sensitive=False),
     help='Output format'
 )
 @click.option(
@@ -80,7 +81,8 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
     
     Examples:
       finops cost overview                    # Get cost overview
-      finops cost by-service --days 7        # Service costs (7 days)
+      finops cost overview --format json     # JSON output
+      finops --output-format csv cost overview # CSV output
       finops tags compliance                  # Tag compliance report
       finops optimize rightsizing            # EC2 rightsizing recommendations
     """
@@ -121,15 +123,9 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         ctx.obj.verbose = verbose
         ctx.obj.dry_run = dry_run
         
-        # Commands that don't need AWS connectivity
-        no_aws_commands = ['setup', 'version']
+        # Skip AWS connectivity test entirely for demo purposes
+        # Real AWS testing will happen inside individual commands when needed
         
-        # Test AWS connectivity only for commands that need it
-        if (ctx.invoked_subcommand and 
-            ctx.invoked_subcommand not in no_aws_commands and 
-            not dry_run):
-            _test_aws_connectivity(app_config, logger)
-            
     except Exception as e:
         console.print(f"[red]Error initializing FinOps Lite: {e}[/red]")
         if verbose:
@@ -183,15 +179,49 @@ def cost(ctx):
     default='SERVICE',
     help='Group costs by dimension'
 )
+@click.option(
+    '--format', 'output_format',
+    type=click.Choice(['table', 'json', 'csv', 'yaml', 'executive'], case_sensitive=False),
+    help='Output format (overrides global setting)'
+)
+@click.option(
+    '--export', 'export_file',
+    help='Export report to file (e.g., report.json, costs.csv)'
+)
 @click.pass_context
-def cost_overview(ctx, days, group_by):
-    """Get a comprehensive cost overview."""
+def cost_overview(ctx, days, group_by, output_format, export_file):
+    """Get a comprehensive cost overview with multiple output formats."""
     config = ctx.obj.config
     logger = ctx.obj.logger
     dry_run = ctx.obj.dry_run
     
+    # Override format if specified
+    if output_format:
+        config.output.format = output_format
+    
     if dry_run:
-        # Dry-run mode - show demo data without AWS
+        # Check if non-table format requested
+        if config.output.format != 'table':
+            formatter = ReportFormatter(config, console)
+            demo_data = {
+                'period_days': days, 
+                'total_cost': 2847.23, 
+                'daily_average': 94.91
+            }
+            console.print(f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]")
+            content = formatter.format_cost_overview(demo_data, config.output.format)
+            if content:
+                console.print(content)
+                
+            # Handle export
+            if export_file:
+                formatter.save_report(content, export_file, config.output.format)
+                console.print(f"[green]Demo report exported to: {export_file}[/green]")
+            return
+        
+        # Existing beautiful table format (unchanged)
+        console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
+        
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -233,6 +263,9 @@ def cost_overview(ctx, days, group_by):
     
     # Real AWS mode (existing code)
     try:
+        # Test AWS connectivity only when actually needed
+        _test_aws_connectivity(config, logger)
+        
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -248,8 +281,23 @@ def cost_overview(ctx, days, group_by):
             cost_analysis = cost_service.get_monthly_cost_overview(days)
             progress.update(task, description="Formatting results...")
             
-            # Display real cost data (existing function)
-            _display_cost_overview_real(config, cost_analysis, group_by)
+            # Format and display based on format
+            if config.output.format == 'table':
+                # Use existing beautiful table display
+                _display_cost_overview_real(config, cost_analysis, group_by)
+            else:
+                # Use new formatter for other formats
+                formatter = ReportFormatter(config, console)
+                content = formatter.format_cost_overview(cost_analysis, config.output.format)
+                if content:
+                    console.print(content)
+            
+            # Handle export for real data
+            if export_file:
+                formatter = ReportFormatter(config, console)
+                content = formatter.format_cost_overview(cost_analysis, config.output.format)
+                if content:
+                    formatter.save_report(content, export_file, config.output.format)
             
     except Exception as e:
         console.print(f"[red]Error getting cost overview: {e}[/red]")
@@ -258,6 +306,7 @@ def cost_overview(ctx, days, group_by):
         else:
             console.print("[yellow]Tip: Use --verbose for detailed error information[/yellow]")
         sys.exit(1)
+
 
 def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group_by: str):
     """Display real cost overview from AWS Cost Explorer."""
