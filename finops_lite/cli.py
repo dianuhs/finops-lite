@@ -19,7 +19,22 @@ from rich.text import Text
 
 from .utils.config import load_config, FinOpsConfig
 from .utils.logger import setup_logger
-from .utils.errors import handle_error, validate_days, ValidationError, AWSCredentialsError
+from .utils.errors import (
+    handle_error, 
+    validate_days, 
+    validate_threshold,
+    validate_aws_profile,
+    validate_aws_region,
+    ValidationError, 
+    AWSCredentialsError,
+    CostExplorerNotEnabledError,
+    CostExplorerWarmingUpError,
+    APIRateLimitError,
+    NetworkTimeoutError,
+    AWSPermissionError,
+    retry_with_backoff,
+    aws_error_mapper
+)
 from .reports.formatters import ReportFormatter
 
 # Global console for rich output
@@ -42,11 +57,13 @@ class FinOpsContext:
 )
 @click.option(
     '--profile', '-p',
-    help='AWS profile to use'
+    help='AWS profile to use',
+    callback=lambda ctx, param, value: validate_aws_profile(value) if value else None
 )
 @click.option(
     '--region', '-r',
-    help='AWS region to use'
+    help='AWS region to use',
+    callback=lambda ctx, param, value: validate_aws_region(value) if value else None
 )
 @click.option(
     '--verbose', '-v',
@@ -129,13 +146,41 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         sys.exit(1)
 
 
+@aws_error_mapper
+@retry_with_backoff(max_retries=2, base_delay=1.0, exceptions=(NetworkTimeoutError,))
 def _test_aws_connectivity(config: FinOpsConfig, logger):
-    """Test AWS connectivity and permissions."""
+    """Test AWS connectivity and permissions with enhanced error handling."""
     try:
         with console.status("[bold blue]Testing AWS connectivity..."):
             session = config.get_boto3_session()
             sts = session.client('sts')
             identity = sts.get_caller_identity()
+            
+            # Test Cost Explorer specifically
+            ce = session.client('ce')
+            # Make a minimal Cost Explorer call to test permissions
+            try:
+                from datetime import datetime, timedelta
+                end_date = datetime.now().date()
+                start_date = end_date - timedelta(days=7)
+                
+                ce.get_cost_and_usage(
+                    TimePeriod={
+                        'Start': start_date.strftime('%Y-%m-%d'),
+                        'End': end_date.strftime('%Y-%m-%d')
+                    },
+                    Granularity='MONTHLY',
+                    Metrics=['BlendedCost']
+                )
+                cost_explorer_status = "[green]✅ Available[/green]"
+            except Exception as ce_error:
+                error_msg = str(ce_error).lower()
+                if 'data is not available' in error_msg or 'warming up' in error_msg:
+                    cost_explorer_status = "[yellow]⏳ Warming up[/yellow]"
+                elif 'not enabled' in error_msg:
+                    cost_explorer_status = "[red]❌ Not enabled[/red]"
+                else:
+                    cost_explorer_status = "[yellow]⚠️  Permission issue[/yellow]"
             
         # Show connection info if verbose
         if config.output.verbose:
@@ -146,11 +191,13 @@ def _test_aws_connectivity(config: FinOpsConfig, logger):
             table.add_row("Account ID", identity.get('Account', 'Unknown'))
             table.add_row("User/Role", identity.get('Arn', 'Unknown').split('/')[-1])
             table.add_row("Region", config.aws.region or session.region_name or 'Unknown')
+            table.add_row("Cost Explorer", cost_explorer_status)
             
             console.print(table)
             
     except Exception as e:
-        raise AWSCredentialsError(f"Unable to locate credentials: {e}")
+        # The aws_error_mapper decorator will convert this to appropriate custom exceptions
+        raise
 
 
 @cli.group()
@@ -269,12 +316,12 @@ def cost_overview(ctx, days, group_by, output_format, export_file):
             ) as progress:
                 task = progress.add_task("Fetching cost data...", total=None)
                 
-                # Use real AWS Cost Explorer service
+                # Use real AWS Cost Explorer service with retry logic
                 from .core.cost_explorer import CostExplorerService
                 cost_service = CostExplorerService(config)
                 
                 progress.update(task, description="Analyzing costs...")
-                cost_analysis = cost_service.get_monthly_cost_overview(days)
+                cost_analysis = _get_cost_data_with_retry(cost_service, days)
                 progress.update(task, description="Formatting results...")
                 
                 # Format and display based on format
@@ -294,8 +341,11 @@ def cost_overview(ctx, days, group_by, output_format, export_file):
                     content = formatter.format_cost_overview(cost_analysis, config.output.format)
                     if content:
                         formatter.save_report(content, export_file, config.output.format)
+                        console.print(f"[green]Report exported to: {export_file}[/green]")
                 
-        except AWSCredentialsError as e:
+        except (CostExplorerNotEnabledError, CostExplorerWarmingUpError, 
+                AWSCredentialsError, AWSPermissionError, APIRateLimitError, 
+                NetworkTimeoutError) as e:
             handle_error(e, config.output.verbose)
             sys.exit(1)
             
@@ -305,6 +355,13 @@ def cost_overview(ctx, days, group_by, output_format, export_file):
     except Exception as e:
         handle_error(e, config.output.verbose)
         sys.exit(1)
+
+
+@aws_error_mapper
+@retry_with_backoff(max_retries=3, base_delay=2.0, exceptions=(APIRateLimitError, NetworkTimeoutError))
+def _get_cost_data_with_retry(cost_service, days):
+    """Get cost data with automatic retry for transient errors."""
+    return cost_service.get_monthly_cost_overview(days)
 
 
 def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group_by: str):
@@ -520,7 +577,8 @@ def optimize():
     '--savings-threshold',
     type=float,
     default=10.0,
-    help='Minimum monthly savings threshold (default: $10)'
+    help='Minimum monthly savings threshold (default: $10)',
+    callback=lambda ctx, param, value: validate_threshold(value) if value is not None else 10.0
 )
 @click.pass_context
 def rightsizing_recommendations(ctx, service, savings_threshold):
@@ -528,10 +586,6 @@ def rightsizing_recommendations(ctx, service, savings_threshold):
     config = ctx.obj.config
     
     try:
-        # Validate savings threshold
-        if savings_threshold < 0:
-            raise ValidationError("Savings threshold must be positive")
-            
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),

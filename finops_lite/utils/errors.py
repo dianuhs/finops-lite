@@ -253,3 +253,4 @@ def validate_threshold(threshold: float) -> float:
         raise ValidationError("Threshold seems unusually high (>$10,000), please verify")
     
     return float(threshold)
+    return float(threshold)
