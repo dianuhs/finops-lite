@@ -8,6 +8,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
+from .reports.formatters import ReportFormatter
 
 from rich.console import Console
 from rich.table import Table
