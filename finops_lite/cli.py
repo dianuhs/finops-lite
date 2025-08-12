@@ -377,3 +377,319 @@ def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group
             return f"${amount:,.{decimal_places}f}"
         else:
             return f"{amount:,.{decimal_places}f} {currency}"
+    
+    # Cost summary panel
+    total_cost = cost_analysis['total_cost']
+    daily_avg = cost_analysis['daily_average']
+    trend = cost_analysis['trend']
+    
+    # Format trend direction
+    if trend.trend_direction == 'up':
+        trend_icon = "[red]↗[/red]"
+        trend_color = "red"
+    elif trend.trend_direction == 'down':
+        trend_icon = "[green]↘[/green]"
+        trend_color = "green"
+    else:
+        trend_icon = "[blue]→[/blue]"
+        trend_color = "blue"
+    
+    trend_text = f"{trend_icon} {trend.change_percentage:+.1f}%"
+    
+    summary_text = f"""
+[bold]Period:[/bold] Last {cost_analysis['period_days']} days
+[bold]Total Cost:[/bold] [green]{format_cost(total_cost)}[/green]
+[bold]Daily Average:[/bold] {format_cost(daily_avg)}
+[bold]Trend:[/bold] {trend_text} vs previous period
+[bold]Currency:[/bold] {currency}
+"""
+    
+    console.print(Panel(summary_text, title="📊 Cost Summary", border_style="blue"))
+    
+    # Service breakdown table
+    service_breakdown = cost_analysis['service_breakdown']
+    
+    if service_breakdown:
+        table = Table(title=f"💸 Top Costs by Service")
+        table.add_column("Service", style="cyan", no_wrap=True)
+        table.add_column("Cost", style="green", justify="right")
+        table.add_column("% of Total", style="yellow", justify="right")
+        table.add_column("Daily Avg", style="blue", justify="right")
+        table.add_column("Trend", justify="center")
+        
+        for service in service_breakdown[:10]:  # Show top 10
+            # Format service trend
+            service_trend = service.trend
+            if service_trend.trend_direction == 'up':
+                service_trend_icon = "[red]↗[/red]"
+            elif service_trend.trend_direction == 'down':
+                service_trend_icon = "[green]↘[/green]"
+            else:
+                service_trend_icon = "[blue]→[/blue]"
+            
+            table.add_row(
+                service.service_name,
+                format_cost(service.total_cost),
+                f"{service.percentage_of_total:.1f}%",
+                format_cost(service.daily_average),
+                service_trend_icon
+            )
+        
+        console.print(table)
+        
+        # Show optimization opportunities if verbose
+        if config.output.verbose:
+            _show_optimization_opportunities(service_breakdown, format_cost)
+    else:
+        console.print("[yellow]No cost data available for the specified period[/yellow]")
+
+
+def _show_optimization_opportunities(service_breakdown: list, format_cost):
+    """Show potential cost optimization opportunities."""
+    
+    # Find services with high costs or upward trends
+    high_cost_services = [s for s in service_breakdown if s.total_cost > 100]  # > $100
+    trending_up_services = [s for s in service_breakdown if s.trend.trend_direction == 'up']
+    
+    opportunities = []
+    
+    # EC2 optimization opportunities
+    ec2_services = [s for s in service_breakdown if 'EC2' in s.service_name.upper()]
+    if ec2_services:
+        total_ec2_cost = sum(s.total_cost for s in ec2_services)
+        if total_ec2_cost > 50:  # > $50
+            opportunities.append(f"• [yellow]EC2 Rightsizing:[/yellow] {format_cost(total_ec2_cost)} in EC2 costs - consider rightsizing analysis")
+    
+    # RDS optimization
+    rds_services = [s for s in service_breakdown if 'RDS' in s.service_name.upper()]
+    if rds_services:
+        total_rds_cost = sum(s.total_cost for s in rds_services)
+        if total_rds_cost > 30:  # > $30
+            opportunities.append(f"• [yellow]RDS Optimization:[/yellow] {format_cost(total_rds_cost)} in RDS costs - review instance types and storage")
+    
+    # Services with upward trends
+    if trending_up_services:
+        trending_cost = sum(s.total_cost for s in trending_up_services[:3])
+        opportunities.append(f"• [yellow]Cost Trend Alert:[/yellow] {len(trending_up_services)} services trending up ({format_cost(trending_cost)})")
+    
+    # Reserved Instance opportunities
+    if any('EC2' in s.service_name.upper() for s in high_cost_services):
+        opportunities.append("• [yellow]Reserved Instances:[/yellow] Consider RIs for consistent EC2 workloads")
+    
+    if opportunities:
+        opportunities_text = "\n".join(opportunities)
+        console.print(Panel(
+            f"[bold]💡 Optimization Opportunities:[/bold]\n\n{opportunities_text}", 
+            title="🎯 Recommendations", 
+            border_style="yellow"
+        ))
+
+
+@cli.group()
+def tags():
+    """🏷️  Tag compliance and governance commands."""
+    pass
+
+
+@tags.command('compliance')
+@click.option(
+    '--service',
+    help='Filter by AWS service (e.g., ec2, rds, s3)'
+)
+@click.option(
+    '--fix',
+    is_flag=True,
+    help='Interactively fix tag compliance issues'
+)
+@click.pass_context
+def tag_compliance(ctx, service, fix):
+    """Check tag compliance across resources."""
+    config = ctx.obj.config
+    
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Scanning resources...", total=None)
+            
+            # Mock compliance report for now
+            _display_tag_compliance_mock(config, service, fix)
+            
+    except Exception as e:
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
+
+
+def _display_tag_compliance_mock(config: FinOpsConfig, service_filter: str, fix: bool):
+    """Display mock tag compliance report."""
+    
+    # Compliance summary
+    summary_text = f"""
+[bold]Resources Scanned:[/bold] 156
+[bold]Compliant:[/bold] [green]89 (57%)[/green]
+[bold]Non-Compliant:[/bold] [red]67 (43%)[/red]
+[bold]Required Tags:[/bold] {', '.join(config.tagging.required_tags)}
+"""
+    
+    console.print(Panel(summary_text, title="🏷️  Tag Compliance Report", border_style="blue"))
+    
+    # Non-compliant resources table
+    table = Table(title="❌ Non-Compliant Resources")
+    table.add_column("Resource", style="cyan")
+    table.add_column("Type", style="yellow")
+    table.add_column("Missing Tags", style="red")
+    table.add_column("Cost Impact", style="green", justify="right")
+    
+    # Mock non-compliant resources
+    resources = [
+        ("i-1234567890abcdef0", "EC2 Instance", "Environment, Owner", "$123.45"),
+        ("vol-abcdef1234567890", "EBS Volume", "Project", "$45.67"),
+        ("rds-production-db", "RDS Instance", "CostCenter", "$234.56"),
+    ]
+    
+    for resource, resource_type, missing, cost in resources:
+        table.add_row(resource, resource_type, missing, cost)
+    
+    console.print(table)
+    
+    if fix:
+        console.print("\n[bold yellow]Interactive tag fixing mode:[/yellow]")
+        if Confirm.ask("Would you like to fix tag compliance issues?"):
+            console.print("[green]Tag fixing functionality coming soon![/green]")
+
+
+@cli.group()
+def optimize():
+    """🚀 Cost optimization commands."""
+    pass
+
+
+@optimize.command('rightsizing')
+@click.option(
+    '--service',
+    type=click.Choice(['ec2', 'rds', 'all'], case_sensitive=False),
+    default='ec2',
+    help='Service to analyze for rightsizing'
+)
+@click.option(
+    '--savings-threshold',
+    type=float,
+    default=10.0,
+    help='Minimum monthly savings threshold (default: $10)',
+    callback=lambda ctx, param, value: validate_threshold(value) if value is not None else 10.0
+)
+@click.pass_context
+def rightsizing_recommendations(ctx, service, savings_threshold):
+    """Get rightsizing recommendations for underutilized resources."""
+    config = ctx.obj.config
+    
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Analyzing resource utilization...", total=None)
+            
+            _display_rightsizing_mock(config, service, savings_threshold)
+            
+    except ValidationError as e:
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
+    except Exception as e:
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
+
+
+def _display_rightsizing_mock(config: FinOpsConfig, service: str, threshold: float):
+    """Display mock rightsizing recommendations."""
+    
+    summary_text = f"""
+[bold]Service:[/bold] {service.upper()}
+[bold]Resources Analyzed:[/bold] 23
+[bold]Recommendations:[/bold] 8
+[bold]Potential Monthly Savings:[/bold] [green]${threshold * 45.68:.2f}[/green]
+"""
+    
+    console.print(Panel(summary_text, title="🚀 Rightsizing Analysis", border_style="green"))
+    
+    # Recommendations table
+    table = Table(title="💡 Rightsizing Recommendations")
+    table.add_column("Resource", style="cyan")
+    table.add_column("Current", style="yellow")
+    table.add_column("Recommended", style="green")
+    table.add_column("Monthly Savings", style="green", justify="right")
+    table.add_column("Confidence", justify="center")
+    
+    recommendations = [
+        ("i-1234567890abcdef0", "m5.large", "m5.medium", f"${threshold * 6.73:.2f}", "[green]High[/green]"),
+        ("i-abcdef1234567890", "c5.xlarge", "c5.large", f"${threshold * 12.35:.2f}", "[yellow]Medium[/yellow]"),
+        ("i-9876543210fedcba", "r5.2xlarge", "r5.xlarge", f"${threshold * 23.46:.2f}", "[green]High[/green]"),
+    ]
+    
+    for resource, current, recommended, savings, confidence in recommendations:
+        table.add_row(resource, current, recommended, savings, confidence)
+    
+    console.print(table)
+
+
+@cli.command('setup')
+@click.option(
+    '--interactive', '-i',
+    is_flag=True,
+    help='Run interactive setup wizard'
+)
+def setup_config(interactive):
+    """🔧 Set up FinOps Lite configuration."""
+    try:
+        if interactive:
+            console.print("[bold blue]🔧 FinOps Lite Setup Wizard[/bold blue]")
+            console.print("This will help you configure FinOps Lite for your AWS environment.\n")
+            
+            # Interactive setup would go here
+            console.print("[green]Interactive setup coming soon![/green]")
+            console.print("For now, copy the template from config/templates/finops.yaml")
+        else:
+            console.print("Configuration template available at: config/templates/finops.yaml")
+            console.print("Copy it to one of these locations:")
+            console.print("  • ./finops.yaml")
+            console.print("  • ~/.config/finops/config.yaml")
+            console.print("  • ~/.finops.yaml")
+    except Exception as e:
+        handle_error(e, verbose=False)
+
+
+@cli.command('version')
+def version():
+    """Show version information."""
+    try:
+        from . import __version__
+        
+        version_text = f"""
+[bold]FinOps Lite[/bold] v{__version__}
+[dim]Professional AWS cost management CLI[/dim]
+
+Built with ❤️  for cloud cost optimization
+"""
+        
+        console.print(Panel(version_text, title="📦 Version Info", border_style="blue"))
+    except Exception as e:
+        handle_error(e, verbose=False)
+
+
+def main():
+    """Main entry point for the CLI."""
+    try:
+        cli()
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled by user[/yellow]")
+        sys.exit(1)
+    except Exception as e:
+        handle_error(e, verbose=False)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
