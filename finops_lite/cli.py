@@ -82,7 +82,7 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
     Examples:
       finops cost overview                    # Get cost overview
       finops cost overview --format json     # JSON output
-      finops cost overview --export report.csv # Export to CSV
+      finops --output-format csv cost overview # CSV output
       finops tags compliance                  # Tag compliance report
       finops optimize rightsizing            # EC2 rightsizing recommendations
     """
@@ -199,74 +199,66 @@ def cost_overview(ctx, days, group_by, output_format, export_file):
     if output_format:
         config.output.format = output_format
     
-    # Create formatter
-    formatter = ReportFormatter(config, console)
-    
-    # Create demo data structure
-    demo_data = {
-        'period_days': days,
-        'total_cost': 2847.23,
-        'daily_average': 2847.23 / days,
-    }
-    
     if dry_run:
-        # Show format-specific output
-        if config.output.format == 'table':
-            # Show the beautiful Rich output we already have
-            console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
-            
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task("Generating demo data...", total=None)
+        # Check if non-table format requested
+        if config.output.format != 'table':
+            formatter = ReportFormatter(config, console)
+            demo_data = {
+                'period_days': days, 
+                'total_cost': 2847.23, 
+                'daily_average': 94.91
+            }
+            console.print(f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]")
+            content = formatter.format_cost_overview(demo_data, config.output.format)
+            if content:
+                console.print(content)
                 
-                # Demo summary
-                summary_text = f"""
+            # Handle export
+            if export_file:
+                formatter.save_report(content, export_file, config.output.format)
+                console.print(f"[green]Demo report exported to: {export_file}[/green]")
+            return
+        
+        # Existing beautiful table format (unchanged)
+        console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Generating demo data...", total=None)
+            
+            # Demo summary
+            summary_text = f"""
 [bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
 [bold]Total Cost:[/bold] [green]$2,847.23[/green]
 [bold]Daily Average:[/bold] $94.91
 [bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
 """
-                
-                console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
-                
-                # Demo table
-                table = Table(title="💸 Top AWS Services (Demo)")
-                table.add_column("Service", style="cyan", no_wrap=True)
-                table.add_column("Cost", style="green", justify="right")
-                table.add_column("% of Total", style="yellow", justify="right")
-                table.add_column("Trend", justify="center")
-                
-                demo_services = [
-                    ("Amazon EC2", "$1,234.56", "43.4%", "[red]↗[/red]"),
-                    ("Amazon RDS", "$543.21", "19.1%", "[green]↘[/green]"),
-                    ("Amazon S3", "$321.45", "11.3%", "[blue]→[/blue]"),
-                    ("AWS Lambda", "$198.76", "7.0%", "[green]↘[/green]"),
-                    ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
-                ]
-                
-                for service, cost, percent, trend in demo_services:
-                    table.add_row(service, cost, percent, trend)
-                
-                console.print(table)
-                console.print("\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]")
-        
-        else:
-            # Use new formatter for other formats
-            console.print(f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]")
-            content = formatter.format_cost_overview(demo_data, config.output.format)
-            if content:
-                console.print(content)
-        
-        # Handle export
-        if export_file:
-            content = formatter.format_cost_overview(demo_data, config.output.format)
-            if content:
-                formatter.save_report(content, export_file, config.output.format)
-                console.print(f"[green]Demo report exported to: {export_file}[/green]")
-        
+            
+            console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
+            
+            # Demo table
+            table = Table(title="💸 Top AWS Services (Demo)")
+            table.add_column("Service", style="cyan", no_wrap=True)
+            table.add_column("Cost", style="green", justify="right")
+            table.add_column("% of Total", style="yellow", justify="right")
+            table.add_column("Trend", justify="center")
+            
+            demo_services = [
+                ("Amazon EC2", "$1,234.56", "43.4%", "[red]↗[/red]"),
+                ("Amazon RDS", "$543.21", "19.1%", "[green]↘[/green]"),
+                ("Amazon S3", "$321.45", "11.3%", "[blue]→[/blue]"),
+                ("AWS Lambda", "$198.76", "7.0%", "[green]↘[/green]"),
+                ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
+            ]
+            
+            for service, cost, percent, trend in demo_services:
+                table.add_row(service, cost, percent, trend)
+            
+            console.print(table)
+            console.print("\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]")
         return
     
     # Real AWS mode (existing code)
@@ -289,18 +281,20 @@ def cost_overview(ctx, days, group_by, output_format, export_file):
             cost_analysis = cost_service.get_monthly_cost_overview(days)
             progress.update(task, description="Formatting results...")
             
-            # Format and display/export based on format
+            # Format and display based on format
             if config.output.format == 'table':
-                # Use existing _display_cost_overview_real function
+                # Use existing beautiful table display
                 _display_cost_overview_real(config, cost_analysis, group_by)
             else:
                 # Use new formatter for other formats
+                formatter = ReportFormatter(config, console)
                 content = formatter.format_cost_overview(cost_analysis, config.output.format)
                 if content:
                     console.print(content)
             
             # Handle export for real data
             if export_file:
+                formatter = ReportFormatter(config, console)
                 content = formatter.format_cost_overview(cost_analysis, config.output.format)
                 if content:
                     formatter.save_report(content, export_file, config.output.format)
