@@ -80,9 +80,8 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
     
     Examples:
       finops cost overview                    # Get cost overview
-      finops cost by-service --days 7        # Service costs (7 days)
-      finops tags compliance                  # Tag compliance report
-      finops optimize rightsizing            # EC2 rightsizing recommendations
+      finops demo                             # Show demo data
+      finops version                          # Show version
     """
     # Create context object
     ctx.ensure_object(FinOpsContext)
@@ -121,14 +120,105 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         ctx.obj.verbose = verbose
         ctx.obj.dry_run = dry_run
         
-        # Skip AWS connectivity test entirely for demo purposes
-        # Real AWS testing will happen inside individual commands when needed
-        
     except Exception as e:
         console.print(f"[red]Error initializing FinOps Lite: {e}[/red]")
         if verbose:
             console.print_exception()
         sys.exit(1)
+
+
+@cli.command('demo')
+@click.option(
+    '--days', '-d',
+    default=30,
+    type=int,
+    help='Number of days to analyze (default: 30)'
+)
+@click.pass_context
+def demo_command(ctx, days):
+    """Show beautiful demo cost data without AWS."""
+    config = ctx.obj.config
+    
+    # Format currency according to config
+    currency = config.output.currency
+    decimal_places = config.output.decimal_places
+    
+    def format_cost(amount):
+        """Format cost amount with proper currency and decimals."""
+        if currency == 'USD':
+            return f"${amount:,.{decimal_places}f}"
+        else:
+            return f"{amount:,.{decimal_places}f} {currency}"
+    
+    # Show progress
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Generating demo data...", total=None)
+        
+        # Demo data
+        total_cost = 2847.23
+        daily_avg = total_cost / days
+        
+        # Demo summary panel
+        summary_text = f"""
+[bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
+[bold]Total Cost:[/bold] [green]{format_cost(total_cost)}[/green]
+[bold]Daily Average:[/bold] {format_cost(daily_avg)}
+[bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
+[bold]Currency:[/bold] {currency}
+"""
+        
+        console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
+        
+        # Demo service breakdown table
+        table = Table(title=f"💸 Top Costs by Service (Demo Data)")
+        table.add_column("Service", style="cyan", no_wrap=True)
+        table.add_column("Cost", style="green", justify="right")
+        table.add_column("% of Total", style="yellow", justify="right")
+        table.add_column("Daily Avg", style="blue", justify="right")
+        table.add_column("Trend", justify="center")
+        
+        # Demo services data
+        demo_services = [
+            ("Amazon Elastic Compute Cloud", 1234.56, 43.4, "[red]↗[/red]"),
+            ("Amazon Relational Database Service", 543.21, 19.1, "[green]↘[/green]"),
+            ("Amazon Simple Storage Service", 321.45, 11.3, "[blue]→[/blue]"),
+            ("AWS Lambda", 198.76, 7.0, "[green]↘[/green]"),
+            ("Amazon CloudWatch", 87.65, 3.1, "[red]↗[/red]"),
+            ("Amazon Virtual Private Cloud", 45.32, 1.6, "[blue]→[/blue]"),
+            ("AWS Key Management Service", 23.18, 0.8, "[green]↘[/green]"),
+        ]
+        
+        for service, cost, percentage, trend in demo_services:
+            daily_cost = cost / days
+            table.add_row(
+                service,
+                format_cost(cost),
+                f"{percentage:.1f}%",
+                format_cost(daily_cost),
+                trend
+            )
+        
+        console.print(table)
+        
+        # Demo optimization opportunities
+        if config.output.verbose:
+            opportunities_text = f"""
+[bold]💡 Optimization Opportunities:[/bold]
+
+• [yellow]EC2 Rightsizing:[/yellow] {format_cost(1234.56)} in EC2 costs - consider rightsizing analysis
+• [yellow]RDS Optimization:[/yellow] {format_cost(543.21)} in RDS costs - review instance types and storage
+• [yellow]Cost Trend Alert:[/yellow] 2 services trending up ({format_cost(1322.21)})
+• [yellow]Reserved Instances:[/yellow] Consider RIs for consistent EC2 workloads
+"""
+            
+            console.print(Panel(opportunities_text, title="🎯 Recommendations (Demo)", border_style="yellow"))
+        
+        # Show note about demo mode
+        console.print(f"\n[dim]💡 This is demo data. Connect AWS credentials to see real cost information.[/dim]")
 
 
 def _test_aws_connectivity(config: FinOpsConfig, logger):
@@ -184,241 +274,44 @@ def cost_overview(ctx, days, group_by):
     logger = ctx.obj.logger
     dry_run = ctx.obj.dry_run
     
+    if dry_run:
+        # In dry-run mode, just call the demo command
+        console.print("[yellow]Running in dry-run mode - showing demo data[/yellow]")
+        ctx.invoke(demo_command, days=days)
+        return
+    
+    # For real AWS mode
     try:
+        # Test AWS connectivity
+        _test_aws_connectivity(config, logger)
+        
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=console,
         ) as progress:
-            task = progress.add_task("Fetching cost data...", total=None)
+            task = progress.add_task("Fetching real cost data...", total=None)
             
-            if dry_run:
-                # Show demo data in dry-run mode
-                progress.update(task, description="Generating demo data...")
-                _display_cost_overview_demo(config, days, group_by)
-            else:
-                # Test AWS connectivity only when actually needed
-                _test_aws_connectivity(config, logger)
-                
-                # Use real AWS Cost Explorer service
-                from .core.cost_explorer import CostExplorerService
-                cost_service = CostExplorerService(config)
-                
-                progress.update(task, description="Analyzing costs...")
-                
-                # Get real cost data
-                cost_analysis = cost_service.get_monthly_cost_overview(days)
-                
-                progress.update(task, description="Formatting results...")
-                
-                # Display real cost data
-                _display_cost_overview_real(config, cost_analysis, group_by)
+            # Import and use real AWS Cost Explorer service
+            from .core.cost_explorer import CostExplorerService
+            cost_service = CostExplorerService(config)
+            
+            progress.update(task, description="Analyzing costs...")
+            
+            # Get real cost data
+            cost_analysis = cost_service.get_monthly_cost_overview(days)
+            
+            progress.update(task, description="Formatting results...")
+            
+            # Display real cost data (this function would need to be implemented)
+            console.print("[green]Real AWS cost data would be displayed here![/green]")
+            console.print(f"[blue]Analysis period: {days} days[/blue]")
+            console.print(f"[blue]Group by: {group_by}[/blue]")
             
     except Exception as e:
         console.print(f"[red]Error getting cost overview: {e}[/red]")
-        if config.output.verbose:
-            console.print_exception()
-        else:
-            console.print("[yellow]Tip: Use --verbose for detailed error information[/yellow]")
-        sys.exit(1)
-
-
-def _display_cost_overview_demo(config: FinOpsConfig, days: int, group_by: str):
-    """Display demo cost overview for dry-run mode."""
-    
-    # Format currency according to config
-    currency = config.output.currency
-    decimal_places = config.output.decimal_places
-    
-    def format_cost(amount):
-        """Format cost amount with proper currency and decimals."""
-        if currency == 'USD':
-            return f"${amount:,.{decimal_places}f}"
-        else:
-            return f"{amount:,.{decimal_places}f} {currency}"
-    
-    # Demo data
-    total_cost = 2847.23
-    daily_avg = total_cost / days
-    
-    # Demo summary panel
-    summary_text = f"""
-[bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
-[bold]Total Cost:[/bold] [green]{format_cost(total_cost)}[/green]
-[bold]Daily Average:[/bold] {format_cost(daily_avg)}
-[bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
-[bold]Currency:[/bold] {currency}
-"""
-    
-    console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
-    
-    # Demo service breakdown table
-    table = Table(title=f"💸 Top Costs by Service (Demo Data)")
-    table.add_column("Service", style="cyan", no_wrap=True)
-    table.add_column("Cost", style="green", justify="right")
-    table.add_column("% of Total", style="yellow", justify="right")
-    table.add_column("Daily Avg", style="blue", justify="right")
-    table.add_column("Trend", justify="center")
-    
-    # Demo services data
-    demo_services = [
-        ("Amazon Elastic Compute Cloud", 1234.56, 43.4, "[red]↗[/red]"),
-        ("Amazon Relational Database Service", 543.21, 19.1, "[green]↘[/green]"),
-        ("Amazon Simple Storage Service", 321.45, 11.3, "[blue]→[/blue]"),
-        ("AWS Lambda", 198.76, 7.0, "[green]↘[/green]"),
-        ("Amazon CloudWatch", 87.65, 3.1, "[red]↗[/red]"),
-        ("Amazon Virtual Private Cloud", 45.32, 1.6, "[blue]→[/blue]"),
-        ("AWS Key Management Service", 23.18, 0.8, "[green]↘[/green]"),
-    ]
-    
-    for service, cost, percentage, trend in demo_services:
-        daily_cost = cost / days
-        table.add_row(
-            service,
-            format_cost(cost),
-            f"{percentage:.1f}%",
-            format_cost(daily_cost),
-            trend
-        )
-    
-    console.print(table)
-    
-    # Demo optimization opportunities
-    if config.output.verbose:
-        opportunities_text = f"""
-[bold]💡 Optimization Opportunities:[/bold]
-
-• [yellow]EC2 Rightsizing:[/yellow] {format_cost(1234.56)} in EC2 costs - consider rightsizing analysis
-• [yellow]RDS Optimization:[/yellow] {format_cost(543.21)} in RDS costs - review instance types and storage
-• [yellow]Cost Trend Alert:[/yellow] 2 services trending up ({format_cost(1322.21)})
-• [yellow]Reserved Instances:[/yellow] Consider RIs for consistent EC2 workloads
-"""
-        
-        console.print(Panel(opportunities_text, title="🎯 Recommendations (Demo)", border_style="yellow"))
-    
-    # Show note about demo mode
-    console.print(f"\n[dim]💡 This is demo data. Connect AWS credentials to see real cost information.[/dim]")
-
-
-def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group_by: str):
-    """Display real cost overview from AWS Cost Explorer."""
-    
-    # Format currency according to config
-    currency = config.output.currency
-    decimal_places = config.output.decimal_places
-    
-    def format_cost(amount):
-        """Format cost amount with proper currency and decimals."""
-        if currency == 'USD':
-            return f"${amount:,.{decimal_places}f}"
-        else:
-            return f"{amount:,.{decimal_places}f} {currency}"
-    
-    # Cost summary panel
-    total_cost = cost_analysis['total_cost']
-    daily_avg = cost_analysis['daily_average']
-    trend = cost_analysis['trend']
-    
-    # Format trend direction
-    if trend.trend_direction == 'up':
-        trend_icon = "[red]↗[/red]"
-        trend_color = "red"
-    elif trend.trend_direction == 'down':
-        trend_icon = "[green]↘[/green]"
-        trend_color = "green"
-    else:
-        trend_icon = "[blue]→[/blue]"
-        trend_color = "blue"
-    
-    trend_text = f"{trend_icon} {trend.change_percentage:+.1f}%"
-    
-    summary_text = f"""
-[bold]Period:[/bold] Last {cost_analysis['period_days']} days
-[bold]Total Cost:[/bold] [green]{format_cost(total_cost)}[/green]
-[bold]Daily Average:[/bold] {format_cost(daily_avg)}
-[bold]Trend:[/bold] {trend_text} vs previous period
-[bold]Currency:[/bold] {currency}
-"""
-    
-    console.print(Panel(summary_text, title="📊 Cost Summary", border_style="blue"))
-    
-    # Service breakdown table
-    service_breakdown = cost_analysis['service_breakdown']
-    
-    if service_breakdown:
-        table = Table(title=f"💸 Top Costs by Service")
-        table.add_column("Service", style="cyan", no_wrap=True)
-        table.add_column("Cost", style="green", justify="right")
-        table.add_column("% of Total", style="yellow", justify="right")
-        table.add_column("Daily Avg", style="blue", justify="right")
-        table.add_column("Trend", justify="center")
-        
-        for service in service_breakdown[:10]:  # Show top 10
-            # Format service trend
-            service_trend = service.trend
-            if service_trend.trend_direction == 'up':
-                service_trend_icon = "[red]↗[/red]"
-            elif service_trend.trend_direction == 'down':
-                service_trend_icon = "[green]↘[/green]"
-            else:
-                service_trend_icon = "[blue]→[/blue]"
-            
-            table.add_row(
-                service.service_name,
-                format_cost(service.total_cost),
-                f"{service.percentage_of_total:.1f}%",
-                format_cost(service.daily_average),
-                service_trend_icon
-            )
-        
-        console.print(table)
-        
-        # Show optimization opportunities if verbose
-        if config.output.verbose:
-            _show_optimization_opportunities(service_breakdown, format_cost)
-    else:
-        console.print("[yellow]No cost data available for the specified period[/yellow]")
-
-
-def _show_optimization_opportunities(service_breakdown: list, format_cost):
-    """Show potential cost optimization opportunities."""
-    
-    # Find services with high costs or upward trends
-    high_cost_services = [s for s in service_breakdown if s.total_cost > 100]  # > $100
-    trending_up_services = [s for s in service_breakdown if s.trend.trend_direction == 'up']
-    
-    opportunities = []
-    
-    # EC2 optimization opportunities
-    ec2_services = [s for s in service_breakdown if 'EC2' in s.service_name.upper()]
-    if ec2_services:
-        total_ec2_cost = sum(s.total_cost for s in ec2_services)
-        if total_ec2_cost > 50:  # > $50
-            opportunities.append(f"• [yellow]EC2 Rightsizing:[/yellow] {format_cost(total_ec2_cost)} in EC2 costs - consider rightsizing analysis")
-    
-    # RDS optimization
-    rds_services = [s for s in service_breakdown if 'RDS' in s.service_name.upper()]
-    if rds_services:
-        total_rds_cost = sum(s.total_cost for s in rds_services)
-        if total_rds_cost > 30:  # > $30
-            opportunities.append(f"• [yellow]RDS Optimization:[/yellow] {format_cost(total_rds_cost)} in RDS costs - review instance types and storage")
-    
-    # Services with upward trends
-    if trending_up_services:
-        trending_cost = sum(s.total_cost for s in trending_up_services[:3])
-        opportunities.append(f"• [yellow]Cost Trend Alert:[/yellow] {len(trending_up_services)} services trending up ({format_cost(trending_cost)})")
-    
-    # Reserved Instance opportunities
-    if any('EC2' in s.service_name.upper() for s in high_cost_services):
-        opportunities.append("• [yellow]Reserved Instances:[/yellow] Consider RIs for consistent EC2 workloads")
-    
-    if opportunities:
-        opportunities_text = "\n".join(opportunities)
-        console.print(Panel(
-            f"[bold]💡 Optimization Opportunities:[/bold]\n\n{opportunities_text}", 
-            title="🎯 Recommendations", 
-            border_style="yellow"
-        ))
+        console.print("[yellow]Falling back to demo data...[/yellow]")
+        ctx.invoke(demo_command, days=days)
 
 
 @cli.group()
@@ -442,26 +335,7 @@ def tag_compliance(ctx, service, fix):
     """Check tag compliance across resources."""
     config = ctx.obj.config
     
-    try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Scanning resources...", total=None)
-            
-            # Mock compliance report for now
-            _display_tag_compliance_mock(config, service, fix)
-            
-    except Exception as e:
-        console.print(f"[red]Error checking tag compliance: {e}[/red]")
-        sys.exit(1)
-
-
-def _display_tag_compliance_mock(config: FinOpsConfig, service_filter: str, fix: bool):
-    """Display mock tag compliance report."""
-    
-    # Compliance summary
+    # Mock compliance report
     summary_text = f"""
 [bold]Resources Scanned:[/bold] 156
 [bold]Compliant:[/bold] [green]89 (57%)[/green]
@@ -520,29 +394,11 @@ def rightsizing_recommendations(ctx, service, savings_threshold):
     """Get rightsizing recommendations for underutilized resources."""
     config = ctx.obj.config
     
-    try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Analyzing resource utilization...", total=None)
-            
-            _display_rightsizing_mock(config, service, savings_threshold)
-            
-    except Exception as e:
-        console.print(f"[red]Error getting rightsizing recommendations: {e}[/red]")
-        sys.exit(1)
-
-
-def _display_rightsizing_mock(config: FinOpsConfig, service: str, threshold: float):
-    """Display mock rightsizing recommendations."""
-    
     summary_text = f"""
 [bold]Service:[/bold] {service.upper()}
 [bold]Resources Analyzed:[/bold] 23
 [bold]Recommendations:[/bold] 8
-[bold]Potential Monthly Savings:[/bold] [green]${threshold * 45.68:.2f}[/green]
+[bold]Potential Monthly Savings:[/bold] [green]${savings_threshold * 45.68:.2f}[/green]
 """
     
     console.print(Panel(summary_text, title="🚀 Rightsizing Analysis", border_style="green"))
@@ -556,9 +412,9 @@ def _display_rightsizing_mock(config: FinOpsConfig, service: str, threshold: flo
     table.add_column("Confidence", justify="center")
     
     recommendations = [
-        ("i-1234567890abcdef0", "m5.large", "m5.medium", f"${threshold * 6.73:.2f}", "[green]High[/green]"),
-        ("i-abcdef1234567890", "c5.xlarge", "c5.large", f"${threshold * 12.35:.2f}", "[yellow]Medium[/yellow]"),
-        ("i-9876543210fedcba", "r5.2xlarge", "r5.xlarge", f"${threshold * 23.46:.2f}", "[green]High[/green]"),
+        ("i-1234567890abcdef0", "m5.large", "m5.medium", f"${savings_threshold * 6.73:.2f}", "[green]High[/green]"),
+        ("i-abcdef1234567890", "c5.xlarge", "c5.large", f"${savings_threshold * 12.35:.2f}", "[yellow]Medium[/yellow]"),
+        ("i-9876543210fedcba", "r5.2xlarge", "r5.xlarge", f"${savings_threshold * 23.46:.2f}", "[green]High[/green]"),
     ]
     
     for resource, current, recommended, savings, confidence in recommendations:
@@ -579,7 +435,6 @@ def setup_config(interactive):
         console.print("[bold blue]🔧 FinOps Lite Setup Wizard[/bold blue]")
         console.print("This will help you configure FinOps Lite for your AWS environment.\n")
         
-        # Interactive setup would go here
         console.print("[green]Interactive setup coming soon![/green]")
         console.print("For now, copy the template from config/templates/finops.yaml")
     else:
