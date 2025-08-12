@@ -1,20 +1,20 @@
-# 💰 FinOps Lite
+# FinOps Lite
 
 **Professional AWS cost management CLI for cost visibility, optimization, and governance.**
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## ✨ Features
+## Features
 
-- 📊 **Cost Overview** - Beautiful terminal cost analysis with trend indicators
-- 🏷️ **Tag Compliance** - Governance and compliance monitoring across resources  
-- 🚀 **Rightsizing** - EC2 optimization recommendations with savings projections
-- 📋 **Multiple Formats** - JSON, CSV, YAML, and Executive summary reports
-- 🔧 **Professional CLI** - Rich formatting, progress bars, and error handling
-- ⚡ **Demo Mode** - Test all features without AWS credentials
+- **Cost Overview** - Beautiful terminal cost analysis with trend indicators
+- **Tag Compliance** - Governance and compliance monitoring across resources  
+- **Rightsizing** - EC2 optimization recommendations with savings projections
+- **Multiple Formats** - JSON, CSV, YAML, and Executive summary reports
+- **Professional CLI** - Rich formatting, progress bars, and error handling
+- **Demo Mode** - Test all features without AWS credentials
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Install dependencies
@@ -36,7 +36,7 @@ finops cost overview --format csv --export costs.csv
 finops --dry-run cost overview
 ```
 
-## 📋 Available Commands
+## Available Commands
 
 ### Cost Analysis
 ```bash
@@ -60,7 +60,7 @@ finops optimize rightsizing
 finops optimize rightsizing --service rds --savings-threshold 50
 ```
 
-## 📊 Output Formats
+## Output Formats
 
 ### Table Format (Default)
 Beautiful Rich-formatted tables with colors and trend indicators.
@@ -85,7 +85,7 @@ Beautiful Rich-formatted tables with colors and trend indicators.
 ### Executive Summary
 Professional management reports with key insights and recommendations.
 
-## ⚙️ Configuration
+## ⚙Configuration
 
 Create `finops.yaml` in your project directory:
 
@@ -109,7 +109,7 @@ tagging:
     - "Project"
 ```
 
-## 🛠️ Built With
+## Built With
 
 - **Python 3.9+** - Modern Python development
 - **Rich** - Beautiful terminal output with colors and formatting
@@ -118,7 +118,7 @@ tagging:
 - **PyYAML** - Configuration management
 - **Pydantic** - Data validation and settings management
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 finops_lite/
@@ -137,7 +137,7 @@ finops_lite/
 └── __init__.py
 ```
 
-## 🔧 Development
+## Development
 
 ```bash
 # Setup development environment
@@ -152,7 +152,7 @@ python -m pytest tests/ -v
 python -m finops_lite.cli --dry-run cost overview
 ```
 
-## 📖 Examples
+## Examples
 
 ### Basic Cost Analysis
 ```bash
@@ -187,7 +187,7 @@ finops --dry-run tags compliance
 finops --dry-run optimize rightsizing
 ```
 
-## 🚀 Business Value
+## Business Value
 
 - **Cost Visibility** - Instant insights into AWS spending patterns
 - **Governance** - Automated tag compliance monitoring
@@ -195,11 +195,11 @@ finops --dry-run optimize rightsizing
 - **Reporting** - Executive summaries and detailed analysis
 - **Automation** - JSON/CSV outputs for integration with other tools
 
-## 📝 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
 
@@ -208,3 +208,4 @@ Contributions welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for d
 **Built with ❤️ for cloud cost optimization**
 
 *Professional AWS FinOps made simple.*
+
