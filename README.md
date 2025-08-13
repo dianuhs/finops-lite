@@ -35,6 +35,28 @@ Cloud cost management is often complex and overwhelming, especially for small te
 
 *Structured output for automation and reporting*
 
+## Sample Output
+
+```bash
+$ AWS_PROFILE=finops-lite python3 -m finops_lite.cli
+💰 AWS Cost Summary
+Month-to-Date Total: $1,247.83
+(Data from Dec 1-15, 2024)
+
+$ AWS_PROFILE=finops-lite python3 -m finops_lite.cli --last-month
+💰 AWS Cost Summary  
+Last Month Total: $2,156.92
+(Data from Nov 1-30, 2024)
+
+$ AWS_PROFILE=finops-lite python3 -m finops_lite.cli services --days 30 --top 5
+🔍 Top Services (Last 30 Days)
+1. EC2-Instance: $892.45
+2. Amazon RDS Service: $234.12  
+3. Amazon Simple Storage Service: $89.23
+4. CloudWatch: $31.04
+5. NatGateway: $28.67
+```
+
 ## Try It in 30 Seconds
 
 ```bash
@@ -332,6 +354,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Built with care for cloud cost optimization**
 
 *FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
+
 
 
 
