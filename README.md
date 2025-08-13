@@ -5,6 +5,10 @@
 [![CI/CD Pipeline](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+[![GitHub issues](https://img.shields.io/github/issues/dianuhs/finops-lite)](https://github.com/dianuhs/finops-lite/issues)
+[![GitHub stars](https://img.shields.io/github/stars/dianuhs/finops-lite)](https://github.com/dianuhs/finops-lite/stargazers)
 
 > Transform complex AWS billing into clear, actionable insights — all from your command line.
 
