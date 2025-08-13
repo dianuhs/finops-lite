@@ -3,12 +3,13 @@ AWS Cost Explorer service integration.
 Handles all cost data retrieval and analysis.
 """
 
-import boto3
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass
-from decimal import Decimal
 import logging
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Tuple
+
+import boto3
 
 from ..utils.config import FinOpsConfig
 

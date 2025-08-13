@@ -5,8 +5,10 @@ Updated to match enhanced error handling and new features.
 
 import pytest
 from click.testing import CliRunner
+
 from finops_lite.cli import cli
-from finops_lite.utils.errors import validate_days, validate_threshold, ValidationError
+from finops_lite.utils.errors import (ValidationError, validate_days,
+                                      validate_threshold)
 
 
 class TestCLIBasics:

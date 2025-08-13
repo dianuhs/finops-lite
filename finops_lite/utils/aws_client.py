@@ -3,19 +3,16 @@ AWS client utilities and session management.
 Handles AWS authentication, retries, and error handling.
 """
 
-import boto3
-import botocore
-from botocore.config import Config
-from botocore.exceptions import (
-    ClientError,
-    NoCredentialsError,
-    PartialCredentialsError,
-    BotoCoreError,
-)
-from typing import Dict, Any, Optional
 import logging
 import time
 from functools import wraps
+from typing import Any, Dict, Optional
+
+import boto3
+import botocore
+from botocore.config import Config
+from botocore.exceptions import (BotoCoreError, ClientError,
+                                 NoCredentialsError, PartialCredentialsError)
 
 from .config import FinOpsConfig
 

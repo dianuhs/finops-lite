@@ -3,13 +3,10 @@ Basic tests for FinOps Lite.
 """
 
 import pytest
-from finops_lite.utils.errors import (
-    validate_days,
-    validate_threshold,
-    ValidationError,
-    AWSCredentialsError,
-    handle_error,
-)
+
+from finops_lite.utils.errors import (AWSCredentialsError, ValidationError,
+                                      handle_error, validate_days,
+                                      validate_threshold)
 
 
 def test_validate_days_valid():

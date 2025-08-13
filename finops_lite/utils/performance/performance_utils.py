@@ -3,24 +3,19 @@ Performance utilities for FinOps Lite.
 Provides timing, progress tracking, and concurrent execution helpers.
 """
 
-import time
 import asyncio
 import concurrent.futures
-from typing import List, Callable, Any, Optional, Dict
-from functools import wraps
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional
 
 from rich.console import Console
-from rich.progress import (
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-    BarColumn,
-)
-from rich.table import Table
 from rich.panel import Panel
+from rich.progress import (BarColumn, Progress, SpinnerColumn, TextColumn,
+                           TimeElapsedColumn)
+from rich.table import Table
 
 console = Console()
 

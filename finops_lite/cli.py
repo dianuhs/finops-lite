@@ -3,46 +3,33 @@ Enhanced CLI interface for FinOps Lite.
 Professional-grade AWS cost management with caching and performance optimizations.
 """
 
-import click
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+import click
+from rich import print as rich_print
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm
-from rich import print as rich_print
+from rich.table import Table
 from rich.text import Text
 
-from .utils.config import load_config, FinOpsConfig
-from .utils.logger import setup_logger
-from .utils.errors import (
-    handle_error,
-    validate_days,
-    validate_threshold,
-    validate_aws_profile,
-    validate_aws_region,
-    ValidationError,
-    AWSCredentialsError,
-    CostExplorerNotEnabledError,
-    CostExplorerWarmingUpError,
-    APIRateLimitError,
-    NetworkTimeoutError,
-    AWSPermissionError,
-    retry_with_backoff,
-    aws_error_mapper,
-)
-from .utils.performance import (
-    CacheManager,
-    PerformanceTracker,
-    timing_decorator,
-    performance_context,
-    show_spinner,
-)
 from .reports.formatters import ReportFormatter
+from .utils.config import FinOpsConfig, load_config
+from .utils.errors import (APIRateLimitError, AWSCredentialsError,
+                           AWSPermissionError, CostExplorerNotEnabledError,
+                           CostExplorerWarmingUpError, NetworkTimeoutError,
+                           ValidationError, aws_error_mapper, handle_error,
+                           retry_with_backoff, validate_aws_profile,
+                           validate_aws_region, validate_days,
+                           validate_threshold)
+from .utils.logger import setup_logger
+from .utils.performance import (CacheManager, PerformanceTracker,
+                                performance_context, show_spinner,
+                                timing_decorator)
 
 # Global console for rich output
 console = Console()

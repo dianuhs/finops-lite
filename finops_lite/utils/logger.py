@@ -5,12 +5,12 @@ Professional logging with structured output and rich formatting.
 
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
 
-from rich.logging import RichHandler
 from rich.console import Console
+from rich.logging import RichHandler
 
 
 def setup_logger(

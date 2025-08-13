@@ -3,18 +3,18 @@ Professional report formatters for FinOps Lite.
 Handles multiple output formats: table, json, csv, yaml, executive summary.
 """
 
-import json
 import csv
-import yaml
-from io import StringIO
+import json
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Any, Optional, Union
+from io import StringIO
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
+import yaml
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
 
 class DecimalEncoder(json.JSONEncoder):
