@@ -7,6 +7,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![codecov](https://codecov.io/gh/dianuhs/finops-lite/branch/main/graph/badge.svg)](https://codecov.io/gh/dianuhs/finops-lite)
 
 > Transform complex AWS billing into clear, actionable insights — all from your command line.
 
@@ -315,4 +316,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Built with care for cloud cost optimization**
 
 *FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
+
 
