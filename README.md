@@ -1,24 +1,33 @@
+
 # FinOps Lite
 
 **Professional AWS cost management in your terminal** — Lightning-fast cost visibility, optimization, and governance.
 
-[![CI/CD Pipeline](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml)
+[![Tests](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-[![GitHub issues](https://img.shields.io/github/issues/dianuhs/finops-lite)](https://github.com/dianuhs/finops-lite/issues)
-[![GitHub stars](https://img.shields.io/github/stars/dianuhs/finops-lite)](https://github.com/dianuhs/finops-lite/stargazers)
+[![codecov](https://codecov.io/gh/dianuhs/finops-lite/branch/main/graph/badge.svg)](https://codecov.io/gh/dianuhs/finops-lite)
 
 > Transform complex AWS billing into clear, actionable insights — all from your command line.
 
-## What Makes FinOps Lite Special
+## Overview
 
-- **Lightning Fast** — Intelligent caching saves time and money on repeated queries
-- **Beautiful Output** — Rich tables, charts, and progress bars that actually look good
-- **Bulletproof Errors** — Helpful guidance when things go wrong (not cryptic AWS errors)
-- **Cost Aware** — Tracks and minimizes your API costs while maximizing insights
-- **Professional Grade** — Enterprise-ready reliability with comprehensive testing
+FinOps Lite is a Python-based CLI tool designed to simplify AWS cost management for small teams and enterprises. By providing clear cost insights, tag governance, and optimization recommendations, it empowers FinOps practitioners to reduce cloud waste and improve financial accountability. Built with performance and user experience in mind, it’s a practical solution for modern cloud cost challenges.
+
+## Why FinOps Lite?
+
+Cloud cost management is often complex and overwhelming, especially for small teams or organizations new to FinOps. FinOps Lite was born out of a desire to simplify AWS cost visibility and optimization, empowering teams to make data-driven decisions without enterprise-grade complexity. This project reflects my passion for bridging technical and financial domains to drive cloud efficiency.
+
+## Try It in 30 Seconds
+
+```bash
+# Install and run
+git clone https://github.com/dianuhs/finops-lite.git
+cd finops-lite
+pip install -e .
+finops cost overview --dry-run
+```
 
 ## Demo
 
@@ -69,21 +78,33 @@ $ finops cache stats
 Good cache performance! Your repeated queries are much faster.
 ```
 
-## Quick Start
+## What Makes FinOps Lite Special
 
-```bash
-# Install
-pip install finops-lite
+- **Lightning Fast** — Intelligent caching saves time and money on repeated queries
+- **Beautiful Output** — Rich tables, charts, and progress bars that actually look good
+- **Bulletproof Errors** — Helpful guidance when things go wrong (not cryptic AWS errors)
+- **Cost Aware** — Tracks and minimizes your API costs while maximizing insights
+- **Professional Grade** — Enterprise-ready reliability with comprehensive testing
 
-# Set up AWS credentials (read-only IAM user recommended)
-aws configure --profile finops-lite
+## Cost & Permissions
 
-# Get your cost overview
-finops cost overview
+> **AWS Cost Explorer API**: ~$0.01 per call. FinOps Lite includes intelligent caching to minimize costs.
+> 
+> **Required IAM Permissions**: Read-only access with `ce:GetCostAndUsage`, `ce:GetRightsizingRecommendation`. See [detailed permissions](#recommended-iam-permissions) below.
 
-# See what's available
-finops --help
-```
+## Real-World Use Cases
+
+**Startup Cost Control**
+A small team uses `finops cost overview --days 7` to monitor weekly AWS spending and identifies a 25% cost spike due to untagged EC2 instances running in non-production environments.
+
+**Enterprise Tag Governance** 
+A FinOps analyst runs `finops tags compliance --export compliance-report.csv` to generate executive reports, ensuring 95% tag coverage across resources for accurate cost allocation.
+
+**Developer Cost Awareness**
+A DevOps engineer uses `finops optimize rightsizing --savings-threshold 50` to find underutilized EC2 instances, identifying $800/month in potential savings through rightsizing recommendations.
+
+**Monthly Executive Reporting**
+A cloud architect exports `finops cost overview --format executive --export monthly-summary.json` to create stakeholder-friendly cost summaries with trend analysis and optimization opportunities.
 
 ## Key Features
 
@@ -110,23 +131,56 @@ finops --help
 - **Cache management** commands for full control
 - **Cost savings** reporting (tracks money saved from caching)
 
-## Advanced Usage
+## Installation & Setup
 
-### Cost Analysis
+### Install from Source
+```bash
+git clone https://github.com/dianuhs/finops-lite.git
+cd finops-lite
+pip install -e .
+```
+
+### AWS Setup
+```bash
+# Create AWS profile (recommended)
+aws configure --profile finops-lite
+
+# Enable Cost Explorer in AWS Console
+# Go to: AWS Cost Management → Cost Explorer → Enable
+
+# Test installation
+finops --help
+```
+
+## Quick Start
+
 ```bash
 # Basic cost overview
 finops cost overview
 
+# Check cache performance
+finops cache stats
+
+# Export to JSON
+finops cost overview --format json --export report.json
+
+# Performance tracking
+finops --performance cost overview
+```
+
+## Advanced Usage
+
+### Cost Analysis
+```bash
 # Different time periods
 finops cost overview --days 7
 finops cost overview --days 90
 
-# Export reports
-finops cost overview --export report.json
-finops cost overview --format csv --export costs.csv
-
 # Force refresh (bypass cache)
 finops cost overview --force-refresh
+
+# Executive summary format
+finops cost overview --format executive
 ```
 
 ### Cache Management
@@ -141,15 +195,6 @@ finops cache clear
 finops --no-cache cost overview
 ```
 
-### Performance Tracking
-```bash
-# See detailed performance metrics
-finops --performance cost overview
-
-# Verbose output with optimization tips
-finops --verbose cost overview
-```
-
 ### Output Formats
 ```bash
 # Beautiful terminal tables (default)
@@ -159,9 +204,6 @@ finops cost overview
 finops cost overview --format json
 finops cost overview --format csv
 finops cost overview --format yaml
-
-# Executive summary
-finops cost overview --format executive
 ```
 
 ## Prerequisites
@@ -194,73 +236,6 @@ Create a read-only IAM user with these policies:
 }
 ```
 
-## Cost Awareness
-
-FinOps Lite calls AWS Cost Explorer APIs, which cost approximately $0.01 per call. The tool includes:
-- **Intelligent caching** to minimize API calls
-- **Cost tracking** to show you exactly how much you're saving
-- **API call optimization** to get maximum value per request
-
-Typical usage costs less than $1/month even with frequent queries.
-
-## Installation & Setup
-
-### Option 1: From PyPI (Recommended)
-```bash
-pip install finops-lite
-```
-
-### Option 2: From Source
-```bash
-git clone https://github.com/dianuhs/finops-lite.git
-cd finops-lite
-pip install -e .
-```
-
-### AWS Setup
-```bash
-# Create AWS profile (recommended)
-aws configure --profile finops-lite
-
-# Enable Cost Explorer in AWS Console
-# Go to: AWS Cost Management → Cost Explorer → Enable
-
-# Test installation
-finops --help
-```
-
-## Examples
-
-### Daily Cost Monitoring
-```bash
-# Quick daily check
-finops cost overview --days 1
-
-# Weekly trend analysis
-finops cost overview --days 7 --verbose
-```
-
-### Monthly Reporting
-```bash
-# Executive summary for stakeholders
-finops cost overview --format executive --export monthly_report.json
-
-# Detailed CSV for analysis
-finops cost overview --format csv --export detailed_costs.csv
-```
-
-### Performance Optimization
-```bash
-# Check what's cached
-finops cache stats
-
-# Analyze performance
-finops --performance cost overview
-
-# Find optimization opportunities
-finops optimize rightsizing --savings-threshold 50
-```
-
 ## Error Handling
 
 FinOps Lite provides helpful guidance when things go wrong:
@@ -286,13 +261,24 @@ $ finops cost overview
 ╰─────────────────────────────────────────────────────────────────╯
 ```
 
-## What's Coming
+## Roadmap
 
-- Real-time cost alerts with Slack/email integration
-- Budget tracking and forecasting
-- Multi-account support for organizations
-- Custom dashboards and reporting
-- API integration for programmatic access
+**Now:**
+- ✅ Cost overview with caching
+- ✅ Multiple output formats
+- ✅ Professional error handling
+
+**Next:**
+- [ ] Real AWS Cost Explorer integration
+- [ ] Tag compliance automation
+- [ ] Enhanced rightsizing analysis
+
+**Later:**
+- [ ] Multi-account support
+- [ ] Budget tracking and forecasting
+- [ ] Real-time cost alerts
+
+See [open issues](https://github.com/dianuhs/finops-lite/issues) for detailed progress.
 
 ## Development
 
@@ -312,19 +298,18 @@ black finops_lite/
 flake8 finops_lite/
 ```
 
-## Documentation
-
-- **Command Reference**: `finops --help` and `finops <command> --help`
-- **Configuration**: See `config/templates/finops.yaml`
-- **API Reference**: Coming soon
-
 ## Contributing
 
-Contributions welcome! Please read our contributing guidelines and submit PRs.
+Contributions welcome! Please read our [contributing guidelines](CONTRIBUTING.md) and submit PRs.
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
+
+## Support
+
+- **Bug reports**: [GitHub Issues](https://github.com/dianuhs/finops-lite/issues)
+- **Feature requests**: [GitHub Discussions](https://github.com/dianuhs/finops-lite/discussions)
 
 ---
 
