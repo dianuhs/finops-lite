@@ -20,35 +20,31 @@ Cloud cost management is often complex and overwhelming, especially for small te
 
 ## What It Looks Like
 
-Monthly cost totals with automatic fallback <br>
+*Monthly cost totals with automatic fallback* <br>
 <img src="docs/images/demo-cost-overview.png" alt="Cost Overview" width="500">
-&nbsp;
 
-
-Performance metrics and caching details <br>
+*Performance metrics and caching details* <br>
 <img src="docs/images/demo-cache-stats.png" alt="Cache Stats" width="300">
-&nbsp;
 
 
-Structured output for automation and reporting <br>
+*Structured output for automation and reporting* <br>
 <img src="docs/images/demo-json-format.png" alt="JSON Format" width="400">
-&nbsp;
 
 
 ## Sample Output
 
 ```bash
-$ AWS_PROFILE=finops-lite finops
+$ AWS_PROFILE=finops-lite finops-lite
 💰 AWS Cost Summary
 Month-to-Date Total: $1,247.83
 (Data from Dec 1-15, 2024)
 
-$ AWS_PROFILE=finops-lite finops --last-month
+$ AWS_PROFILE=finops-lite finops-lite --last-month
 💰 AWS Cost Summary  
 Last Month Total: $2,156.92
 (Data from Nov 1-30, 2024)
 
-$ AWS_PROFILE=finops-lite finops services --days 30 --top 5
+$ AWS_PROFILE=finops-lite finops-lite services --days 30 --top 5
 🔍 Top Services (Last 30 Days)
 1. EC2-Instance: $892.45
 2. Amazon RDS Service: $234.12  
@@ -64,13 +60,13 @@ $ AWS_PROFILE=finops-lite finops services --days 30 --top 5
 git clone https://github.com/dianuhs/finops-lite.git
 cd finops-lite
 pip install -e .
-finops --dry-run cost overview
+finops-lite --dry-run cost overview
 ```
 
 ## Demo
 
 ```bash
-$ finops cost overview
+$ finops-lite cost overview
 ```
 
 ```
@@ -97,7 +93,7 @@ $ finops cost overview
 ```
 
 ```bash
-$ finops cache stats
+$ finops-lite cache stats
 ```
 
 ```
@@ -133,16 +129,16 @@ Good cache performance! Your repeated queries are much faster.
 ## Real-World Use Cases
 
 **Startup Cost Control**
-A small team uses `finops cost overview --days 7` to monitor weekly AWS spending and identifies a 25% cost spike due to untagged EC2 instances running in non-production environments.
+A small team uses `finops-lite cost overview --days 7` to monitor weekly AWS spending and identifies a 25% cost spike due to untagged EC2 instances running in non-production environments.
 
 **Enterprise Tag Governance** 
-A FinOps analyst runs `finops tags compliance --export compliance-report.csv` to generate executive reports, ensuring 95% tag coverage across resources for accurate cost allocation.
+A FinOps analyst runs `finops-lite tags compliance --export compliance-report.csv` to generate executive reports, ensuring 95% tag coverage across resources for accurate cost allocation.
 
 **Developer Cost Awareness**
-A DevOps engineer uses `finops optimize rightsizing --savings-threshold 50` to find underutilized EC2 instances, identifying $800/month in potential savings through rightsizing recommendations.
+A DevOps engineer uses `finops-lite optimize rightsizing --savings-threshold 50` to find underutilized EC2 instances, identifying $800/month in potential savings through rightsizing recommendations.
 
 **Monthly Executive Reporting**
-A cloud architect exports `finops cost overview --format executive --export monthly-summary.json` to create stakeholder-friendly cost summaries with trend analysis and optimization opportunities.
+A cloud architect exports `finops-lite cost overview --format executive --export monthly-summary.json` to create stakeholder-friendly cost summaries with trend analysis and optimization opportunities.
 
 ## Key Features
 
@@ -187,23 +183,23 @@ aws configure --profile finops-lite
 # Go to: AWS Cost Management → Cost Explorer → Enable
 
 # Test installation
-finops --help
+finops-lite --help
 ```
 
 ## Quick Start
 
 ```bash
 # Basic cost overview
-finops cost overview
+finops-lite cost overview
 
 # Check cache performance
-finops cache stats
+finops-lite cache stats
 
 # Export to JSON
-finops cost overview --format json --export report.json
+finops-lite cost overview --format json --export report.json
 
 # Performance tracking
-finops --performance cost overview
+finops-lite --performance cost overview
 ```
 
 ## Advanced Usage
@@ -211,37 +207,37 @@ finops --performance cost overview
 ### Cost Analysis
 ```bash
 # Different time periods
-finops cost overview --days 7
-finops cost overview --days 90
+finops-lite cost overview --days 7
+finops-lite cost overview --days 90
 
 # Force refresh (bypass cache)
-finops cost overview --force-refresh
+finops-lite cost overview --force-refresh
 
 # Executive summary format
-finops cost overview --format executive
+finops-lite cost overview --format executive
 ```
 
 ### Cache Management
 ```bash
 # Check cache performance
-finops cache stats
+finops-lite cache stats
 
 # Clear cache
-finops cache clear
+finops-lite cache clear
 
 # Disable cache for one command
-finops --no-cache cost overview
+finops-lite --no-cache cost overview
 ```
 
 ### Output Formats
 ```bash
 # Beautiful terminal tables (default)
-finops cost overview
+finops-lite cost overview
 
 # Machine-readable formats
-finops cost overview --format json
-finops cost overview --format csv
-finops cost overview --format yaml
+finops-lite cost overview --format json
+finops-lite cost overview --format csv
+finops-lite cost overview --format yaml
 ```
 
 ## Prerequisites
@@ -279,7 +275,7 @@ Create a read-only IAM user with these policies:
 FinOps Lite provides helpful guidance when things go wrong:
 
 ```bash
-$ finops cost overview
+$ finops-lite cost overview
 ╭──────────────────────── AWS Credentials ────────────────────────╮
 │ AWS Credentials Not Found                                       │
 │                                                                 │
@@ -289,7 +285,7 @@ $ finops cost overview
 │                                                                 │
 │   2. Use named profile:                                         │
 │      export AWS_PROFILE=your-profile-name                       │
-│      # or use: finops --profile your-profile-name               │
+│      # or use: finops-lite --profile your-profile-name          │
 │                                                                 │
 │   3. Use environment variables:                                 │
 │      export AWS_ACCESS_KEY_ID=your-key                          │
@@ -354,9 +350,6 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Built with care for cloud cost optimization**
 
 *FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
-
-
-
 
 
 
