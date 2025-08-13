@@ -91,6 +91,20 @@ Good cache performance! Your repeated queries are much faster.
 > 
 > **Required IAM Permissions**: Read-only access with `ce:GetCostAndUsage`, `ce:GetRightsizingRecommendation`. See [detailed permissions](#recommended-iam-permissions) below.
 
+## Real-World Use Cases
+
+**Startup Cost Control**
+A small team uses `finops cost overview --days 7` to monitor weekly AWS spending and identifies a 25% cost spike due to untagged EC2 instances running in non-production environments.
+
+**Enterprise Tag Governance** 
+A FinOps analyst runs `finops tags compliance --export compliance-report.csv` to generate executive reports, ensuring 95% tag coverage across resources for accurate cost allocation.
+
+**Developer Cost Awareness**
+A DevOps engineer uses `finops optimize rightsizing --savings-threshold 50` to find underutilized EC2 instances, identifying $800/month in potential savings through rightsizing recommendations.
+
+**Monthly Executive Reporting**
+A cloud architect exports `finops cost overview --format executive --export monthly-summary.json` to create stakeholder-friendly cost summaries with trend analysis and optimization opportunities.
+
 ## Key Features
 
 ### Cost Analysis
@@ -301,3 +315,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Built with care for cloud cost optimization**
 
 *FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
+
