@@ -1,38 +1,66 @@
 # Changelog
 
-All notable changes to FinOps Lite will be documented in this file.
+All notable changes to this project will be documented in this file.
 
-## [0.1.0] - 2025-08-11
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2025-01-12
 
 ### Added
-- ✨ **Initial Release** - Professional AWS FinOps CLI
-- 📊 **Cost Overview** - Beautiful terminal cost analysis with Rich formatting
-- 🏷️ **Tag Compliance** - Resource governance and compliance monitoring
-- 🚀 **Rightsizing** - EC2 optimization recommendations
-- 📋 **Multiple Output Formats** - JSON, CSV, YAML, and Executive summary reports
-- 🔧 **Professional CLI** - Click-based interface with progress bars
-- ⚙️ **Configuration System** - YAML-based configuration with environment overrides
-- 🛡️ **Error Handling** - Robust error management with user-friendly messages
-- ✅ **Test Suite** - Comprehensive test coverage with pytest
-- 📖 **Documentation** - Professional README with examples and architecture
-- 🎯 **Demo Mode** - Test all features without AWS credentials
+- Initial release of FinOps Lite CLI
+- Cost overview with month-to-date totals and service breakdown
+- Beautiful terminal output with rich tables and progress indicators
+- Intelligent caching system to minimize AWS API costs
+- Cache management commands (`finops cache stats`, `finops cache clear`)
+- Performance tracking with detailed metrics
+- Multiple output formats (table, JSON, CSV, YAML, executive)
+- Enhanced error handling with actionable AWS guidance
+- Support for AWS Cost Explorer with automatic fallback handling
+- Tag compliance reporting (demo mode)
+- EC2 rightsizing recommendations (demo mode)
+- Professional packaging with `finops` command entry point
 
-### Features
-- Real AWS Cost Explorer API integration
-- Beautiful Rich terminal formatting with colors and tables
-- Input validation and error handling
-- File export functionality
-- Professional logging system
-- Modern Python packaging with pyproject.toml
+### Enhanced Error Handling
+- Beautiful error panels with specific guidance for AWS issues
+- Cost Explorer not enabled detection and setup instructions
+- AWS credentials missing with multiple resolution options
+- API rate limiting with retry logic and exponential backoff
+- Network timeout handling with automatic retries
+- Permission error detection with required IAM policy suggestions
 
-### Technical Details
-- Python 3.9+ support
-- Rich for terminal formatting
-- Click for CLI framework
-- Pydantic for configuration validation
-- AWS SDK (boto3) integration
-- Professional project structure
+### Performance Features
+- Intelligent API response caching with configurable TTL
+- Cache hit/miss tracking with cost savings calculation
+- Performance metrics and timing for all operations
+- Concurrent API calls where possible
+- Progress indicators for long-running operations
+- Cache statistics and management commands
 
----
+### CLI Features
+- Global options for output format, caching, and performance tracking
+- Dry-run mode for testing without AWS API calls
+- Verbose mode with detailed optimization recommendations
+- Force refresh option to bypass cache
+- Export functionality for reports
+- Professional help system with examples
 
-**Built with ❤️ for cloud cost optimization**
+### Development
+- Comprehensive test suite with 37 test cases
+- GitHub Actions CI/CD pipeline with automated testing
+- Code quality checks (Black, Flake8, isort)
+- Security scanning with Bandit and Trivy
+- Professional packaging with setup.py and MANIFEST.in
+- Development dependencies and tooling setup
+
+## [Unreleased]
+
+### Planned
+- Real AWS Cost Explorer integration
+- Multi-account support for organizations
+- Real-time cost alerts with Slack/email integration
+- Budget tracking and forecasting
+- Custom dashboards and reporting
+- API integration for programmatic access
+- Interactive tag fixing functionality
+- Advanced rightsizing analysis with historical data
