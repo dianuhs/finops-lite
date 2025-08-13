@@ -19,6 +19,20 @@ FinOps Lite is a Python-based CLI tool designed to simplify AWS cost management 
 
 Cloud cost management is often complex and overwhelming, especially for small teams or organizations new to FinOps. FinOps Lite was born out of a desire to simplify AWS cost visibility and optimization, empowering teams to make data-driven decisions without enterprise-grade complexity. This project reflects my passion for bridging technical and financial domains to drive cloud efficiency.
 
+## What It Looks Like
+
+![Cost Overview](docs/images/demo-cost-overview.png)
+
+*Monthly cost totals with automatic fallback*
+
+![Cache Stats](docs/images/demo-cache-stats.png)
+
+*Performance metrics and caching details*
+
+![JSON Format](docs/images/demo-json-format.png)
+
+*Structured output for automation and reporting*
+
 ## Try It in 30 Seconds
 
 ```bash
@@ -316,6 +330,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Built with care for cloud cost optimization**
 
 *FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
+
 
 
 
