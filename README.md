@@ -1,33 +1,39 @@
 # FinOps Lite
 
-**Professional AWS cost management CLI for cost visibility, optimization, and governance.**
+**Professional AWS cost management in your terminal** — Lightning-fast cost visibility, optimization, and governance.
 
+[![CI/CD Pipeline](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Features
+> Transform complex AWS billing into clear, actionable insights — all from your command line.
 
-- **Cost Overview** - Beautiful terminal cost analysis with trend indicators
-- **Tag Compliance** - Governance and compliance monitoring across resources  
-- **Rightsizing** - EC2 optimization recommendations with savings projections
-- **Multiple Formats** - JSON, CSV, YAML, and Executive summary reports
-- **Professional CLI** - Rich formatting, progress bars, and error handling
-- **Demo Mode** - Test all features without AWS credentials
+## What Makes FinOps Lite Special
 
-## Demo Output
+- **Lightning Fast** — Intelligent caching saves time and money on repeated queries
+- **Beautiful Output** — Rich tables, charts, and progress bars that actually look good
+- **Bulletproof Errors** — Helpful guidance when things go wrong (not cryptic AWS errors)
+- **Cost Aware** — Tracks and minimizes your API costs while maximizing insights
+- **Professional Grade** — Enterprise-ready reliability with comprehensive testing
 
-### Cost Overview (Table Format)
+## Demo
+
+```bash
+$ finops cost overview
 ```
-╭──────────────────── 📊 Cost Summary (Demo) ─────────────────────╮
-│                                                                 │
-│ Period: Last 30 days (DEMO DATA)                                │
-│ Total Cost: $2,847.23                                           │
-│ Daily Average: $94.91                                           │
-│ Trend: ↗ +12.3% vs previous period                              │
-│                                                                 │
-╰─────────────────────────────────────────────────────────────────╯
 
-          💸 Top AWS Services (Demo)           
+```
+╭────────────────────── Cost Summary ──────────────────────╮
+│                                                          │
+│ Period: Last 30 days                                     │
+│ Total Cost: $2,847.23                                    │
+│ Daily Average: $94.91                                    │
+│ Trend: ↗ +12.3% vs previous period                       │
+│ Currency: USD                                            │
+│                                                          │
+╰──────────────────────────────────────────────────────────╯
+
+          Top AWS Services           
 ┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━┓
 ┃ Service    ┃      Cost ┃ % of Total ┃ Trend ┃
 ┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━┩
@@ -37,283 +43,289 @@
 │ AWS Lambda │   $198.76 │       7.0% │   ↘   │
 │ CloudWatch │    $87.65 │       3.1% │   ↗   │
 └────────────┴───────────┴────────────┴───────┘
-
-💡 This is demo data. Configure AWS credentials to see real costs.
 ```
 
-### Executive Summary Report
-```
-FINOPS LITE - EXECUTIVE COST SUMMARY
-==================================================
-
-REPORTING PERIOD: 30 Days
-GENERATED: August 11, 2025 at 07:41 PM
-
-KEY FINANCIAL METRICS
--------------------------
-Total Cloud Spend: $2,847.23
-Daily Average: $94.91
-Monthly Run Rate: $2,847.30
-
-COST TREND ANALYSIS
--------------------------
-Trend Direction: UP
-Period-over-Period Change: +12.3%
-Absolute Change: +$312.45
-
-TOP SERVICE CONCENTRATION
--------------------------
-Top 3 Services: 73.8% of total spend
-
-TOP 3 SERVICES BY COST:
-1. Amazon Elastic Compute Cloud: $1,234.56 (43.4%)
-2. Amazon Relational Database Service: $543.21 (19.1%)
-3. Amazon Simple Storage Service: $321.45 (11.3%)
-
-RECOMMENDATIONS
--------------------------
-• Consider Reserved Instance analysis for consistent workloads
-• EC2 Rightsizing opportunity: $1,234.56 in compute costs
-• Monitor 2 services with increasing costs
-• High service concentration - consider cost diversification
-
-Generated by FinOps Lite v1.0
-For detailed analysis, run: finops cost overview --format json
+```bash
+$ finops cache stats
 ```
 
-### JSON Output for Automation
-```json
-{
-  "finops_lite_report": {
-    "version": "1.0",
-    "generated_at": "2025-08-11T19:41:02.364006",
-    "report_type": "cost_overview",
-    "period_days": 30,
-    "currency": "USD",
-    "summary": {
-      "total_cost": 2847.23,
-      "daily_average": 94.91,
-      "trend": {
-        "direction": "up",
-        "change_percentage": 12.3,
-        "change_amount": 312.45
-      }
-    },
-    "services": [
-      {
-        "service_name": "Amazon Elastic Compute Cloud",
-        "total_cost": 1234.56,
-        "percentage_of_total": 43.4,
-        "daily_average": 41.15,
-        "trend": {
-          "direction": "up",
-          "change_percentage": 15.2
-        }
-      }
-    ]
-  }
-}
+```
+     Cache Statistics     
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Metric            ┃ Value ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Cache Entries     │ 12    │
+│ Cache Size        │ 0.3MB │
+│ Hit Rate          │ 67%   │
+│ API Calls Saved   │ 23    │
+│ Est. Cost Savings │ $0.23 │
+│ Cache Hits        │ 23    │
+│ Cache Misses      │ 11    │
+└───────────────────┴───────┘
+Good cache performance! Your repeated queries are much faster.
 ```
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-pip install -e .
+# Install
+pip install finops-lite
 
-# Get beautiful cost overview
+# Set up AWS credentials (read-only IAM user recommended)
+aws configure --profile finops-lite
+
+# Get your cost overview
 finops cost overview
 
-# JSON output for automation
-finops cost overview --format json
-
-# Executive summary for management
-finops cost overview --format executive
-
-# Export to CSV for analysis
-finops cost overview --format csv --export costs.csv
-
-# Test without AWS credentials
-finops --dry-run cost overview
+# See what's available
+finops --help
 ```
 
-## Available Commands
+## Key Features
+
+### Cost Analysis
+- **Month-to-date totals** with intelligent fallback to last month
+- **Cost by service** breakdown with trend analysis
+- **Multiple output formats** (table, JSON, CSV, YAML, executive summary)
+- **Smart caching** to avoid duplicate API calls
+
+### Tag Governance
+- **Tag compliance** reporting across all resources
+- **Cost impact** analysis for untagged resources
+- **Bulk tagging** recommendations (coming soon)
+
+### Cost Optimization
+- **EC2 rightsizing** recommendations with confidence scores
+- **Reserved Instance** opportunity analysis
+- **Unused resource** detection (coming soon)
+- **Trend alerts** for cost spikes
+
+### Performance & Caching
+- **Intelligent caching** saves money on API calls
+- **Performance tracking** with detailed metrics
+- **Cache management** commands for full control
+- **Cost savings** reporting (tracks money saved from caching)
+
+## Advanced Usage
 
 ### Cost Analysis
 ```bash
-# Cost overview with trend analysis
+# Basic cost overview
 finops cost overview
-finops cost overview --days 7 --format json
-finops cost overview --group-by REGION
+
+# Different time periods
+finops cost overview --days 7
+finops cost overview --days 90
+
+# Export reports
+finops cost overview --export report.json
+finops cost overview --format csv --export costs.csv
+
+# Force refresh (bypass cache)
+finops cost overview --force-refresh
 ```
 
-### Governance & Compliance
+### Cache Management
 ```bash
-# Tag compliance monitoring
-finops tags compliance
-finops tags compliance --service ec2 --fix
+# Check cache performance
+finops cache stats
+
+# Clear cache
+finops cache clear
+
+# Disable cache for one command
+finops --no-cache cost overview
 ```
 
-### Optimization
+### Performance Tracking
 ```bash
-# Rightsizing recommendations
-finops optimize rightsizing
-finops optimize rightsizing --service rds --savings-threshold 50
+# See detailed performance metrics
+finops --performance cost overview
+
+# Verbose output with optimization tips
+finops --verbose cost overview
 ```
 
-## Output Formats
-
-### Table Format (Default)
-Beautiful Rich-formatted tables with colors and trend indicators.
-
-### JSON Format
-Perfect for automation, APIs, and data pipelines with structured cost data.
-
-### CSV Format
-Export to spreadsheets for detailed analysis and reporting.
-
-### YAML Format
-Configuration-style output for DevOps workflows.
-
-### Executive Summary
-Professional management reports with key insights and recommendations.
-
-## Configuration
-
-Create `finops.yaml` in your project directory:
-
-```yaml
-aws:
-  profile: "default"
-  region: "us-east-1"
-
-output:
-  format: "table"
-  currency: "USD"
-  
-cost:
-  default_days: 30
-  cost_threshold: 0.01
-
-tagging:
-  required_tags:
-    - "Environment"
-    - "Owner"
-    - "Project"
-```
-
-## Built With
-
-- **Python 3.9+** - Modern Python development
-- **Rich** - Beautiful terminal output with colors and formatting
-- **Click** - Professional CLI framework
-- **AWS Cost Explorer API** - Real AWS cost data integration
-- **PyYAML** - Configuration management
-- **Pydantic** - Data validation and settings management
-
-## Architecture
-
-```
-finops_lite/
-├── cli.py              # Main CLI interface
-├── core/               # AWS service integrations
-│   ├── cost_explorer.py
-│   └── __init__.py
-├── reports/            # Output formatters
-│   ├── formatters.py
-│   └── __init__.py
-├── utils/              # Utilities and helpers
-│   ├── config.py       # Configuration management
-│   ├── logger.py       # Logging setup
-│   ├── aws_client.py   # AWS client utilities
-│   └── errors.py       # Error handling
-└── __init__.py
-```
-
-## Development
-
+### Output Formats
 ```bash
-# Setup development environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Beautiful terminal tables (default)
+finops cost overview
+
+# Machine-readable formats
+finops cost overview --format json
+finops cost overview --format csv
+finops cost overview --format yaml
+
+# Executive summary
+finops cost overview --format executive
+```
+
+## Prerequisites
+
+- **Python 3.9+**
+- **AWS CLI configured** with appropriate credentials
+- **AWS Cost Explorer enabled** (may take 24-48 hours for first-time setup)
+
+### Recommended IAM Permissions
+
+Create a read-only IAM user with these policies:
+- `ReadOnlyAccess` (AWS managed policy)
+- Custom policy for Cost Explorer:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ce:GetCostAndUsage",
+                "ce:GetRightsizingRecommendation",
+                "ce:GetReservationCoverage",
+                "ce:GetUsageReport"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+## Cost Awareness
+
+FinOps Lite calls AWS Cost Explorer APIs, which cost approximately $0.01 per call. The tool includes:
+- **Intelligent caching** to minimize API calls
+- **Cost tracking** to show you exactly how much you're saving
+- **API call optimization** to get maximum value per request
+
+Typical usage costs less than $1/month even with frequent queries.
+
+## Installation & Setup
+
+### Option 1: From PyPI (Recommended)
+```bash
+pip install finops-lite
+```
+
+### Option 2: From Source
+```bash
+git clone https://github.com/dianuhs/finops-lite.git
+cd finops-lite
 pip install -e .
+```
 
-# Run tests
-python -m pytest tests/ -v
+### AWS Setup
+```bash
+# Create AWS profile (recommended)
+aws configure --profile finops-lite
 
-# Test CLI functionality
-python -m finops_lite.cli --dry-run cost overview
+# Enable Cost Explorer in AWS Console
+# Go to: AWS Cost Management → Cost Explorer → Enable
+
+# Test installation
+finops --help
 ```
 
 ## Examples
 
-### Basic Cost Analysis
+### Daily Cost Monitoring
 ```bash
-# Get 30-day cost overview
-finops cost overview
+# Quick daily check
+finops cost overview --days 1
 
-# Last 7 days with JSON output
-finops cost overview --days 7 --format json
-
-# Export to spreadsheet
-finops cost overview --format csv --export monthly-costs.csv
+# Weekly trend analysis
+finops cost overview --days 7 --verbose
 ```
 
-### Automation & Integration
+### Monthly Reporting
 ```bash
-# JSON for scripts/automation
-finops --output-format json cost overview > costs.json
+# Executive summary for stakeholders
+finops cost overview --format executive --export monthly_report.json
 
-# Executive report for management
-finops cost overview --format executive > executive-summary.txt
-
-# Tag compliance monitoring
-finops tags compliance --service ec2 > compliance-report.txt
+# Detailed CSV for analysis
+finops cost overview --format csv --export detailed_costs.csv
 ```
 
-### Demo Mode (No AWS Required)
+### Performance Optimization
 ```bash
-# Try all features without AWS credentials
-finops --dry-run cost overview
-finops --dry-run cost overview --format json
-finops --dry-run tags compliance
-finops --dry-run optimize rightsizing
+# Check what's cached
+finops cache stats
+
+# Analyze performance
+finops --performance cost overview
+
+# Find optimization opportunities
+finops optimize rightsizing --savings-threshold 50
 ```
 
-## Business Value
+## Error Handling
 
-- **Cost Visibility** - Instant insights into AWS spending patterns
-- **Governance** - Automated tag compliance monitoring
-- **Optimization** - Rightsizing recommendations with savings projections  
-- **Reporting** - Executive summaries and detailed analysis
-- **Automation** - JSON/CSV outputs for integration with other tools
-
-## Testing
+FinOps Lite provides helpful guidance when things go wrong:
 
 ```bash
-# Run the comprehensive test suite
-python -m pytest tests/ -v
-
-# Test specific functionality
-python -m pytest tests/test_cli.py::TestCostOverview -v
-
-# Quick validation
-python -c "from finops_lite.cli import cli; print('✅ CLI loads successfully')"
+$ finops cost overview
+╭──────────────────────── AWS Credentials ────────────────────────╮
+│ AWS Credentials Not Found                                       │
+│                                                                 │
+│ Quick Fixes:                                                    │
+│   1. Configure AWS CLI:                                         │
+│      aws configure                                              │
+│                                                                 │
+│   2. Use named profile:                                         │
+│      export AWS_PROFILE=your-profile-name                       │
+│      # or use: finops --profile your-profile-name               │
+│                                                                 │
+│   3. Use environment variables:                                 │
+│      export AWS_ACCESS_KEY_ID=your-key                          │
+│      export AWS_SECRET_ACCESS_KEY=your-secret                   │
+│                                                                 │
+│ Cost Note: Cost Explorer API calls cost ~$0.01 each             │
+╰─────────────────────────────────────────────────────────────────╯
 ```
+
+## What's Coming
+
+- Real-time cost alerts with Slack/email integration
+- Budget tracking and forecasting
+- Multi-account support for organizations
+- Custom dashboards and reporting
+- API integration for programmatic access
+
+## Development
+
+```bash
+# Clone repository
+git clone https://github.com/dianuhs/finops-lite.git
+cd finops-lite
+
+# Install development dependencies
+pip install -e .[dev]
+
+# Run tests
+pytest
+
+# Check code quality
+black finops_lite/
+flake8 finops_lite/
+```
+
+## Documentation
+
+- **Command Reference**: `finops --help` and `finops <command> --help`
+- **Configuration**: See `config/templates/finops.yaml`
+- **API Reference**: Coming soon
+
+## Contributing
+
+Contributions welcome! Please read our contributing guidelines and submit PRs.
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## Contributing
-
-Contributions welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
-
 ---
 
-**Built with ❤️ for cloud cost optimization**
+**Built with care for cloud cost optimization**
 
-*Professional AWS FinOps made simple.*
-
+*FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
 
 
