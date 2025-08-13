@@ -1,7 +1,7 @@
 """
 FinOps Lite - AWS FinOps CLI for cost visibility, optimization, and governance.
 
-A professional-grade command-line tool that brings AWS cost management 
+A professional-grade command-line tool that brings AWS cost management
 directly to your terminal.
 """
 

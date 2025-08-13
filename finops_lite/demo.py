@@ -33,4 +33,6 @@ for service, cost, percent, trend in demo_services:
     table.add_row(service, cost, percent, trend)
 
 console.print(table)
-console.print("\n[dim]💡 This is demo data showing how beautiful your FinOps CLI looks![/dim]")
+console.print(
+    "\n[dim]💡 This is demo data showing how beautiful your FinOps CLI looks![/dim]"
+)
