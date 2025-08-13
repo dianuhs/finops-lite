@@ -19,17 +19,30 @@ from rich.text import Text
 
 from .reports.formatters import ReportFormatter
 from .utils.config import FinOpsConfig, load_config
-from .utils.errors import (APIRateLimitError, AWSCredentialsError,
-                           AWSPermissionError, CostExplorerNotEnabledError,
-                           CostExplorerWarmingUpError, NetworkTimeoutError,
-                           ValidationError, aws_error_mapper, handle_error,
-                           retry_with_backoff, validate_aws_profile,
-                           validate_aws_region, validate_days,
-                           validate_threshold)
+from .utils.errors import (
+    APIRateLimitError,
+    AWSCredentialsError,
+    AWSPermissionError,
+    CostExplorerNotEnabledError,
+    CostExplorerWarmingUpError,
+    NetworkTimeoutError,
+    ValidationError,
+    aws_error_mapper,
+    handle_error,
+    retry_with_backoff,
+    validate_aws_profile,
+    validate_aws_region,
+    validate_days,
+    validate_threshold,
+)
 from .utils.logger import setup_logger
-from .utils.performance import (CacheManager, PerformanceTracker,
-                                performance_context, show_spinner,
-                                timing_decorator)
+from .utils.performance import (
+    CacheManager,
+    PerformanceTracker,
+    performance_context,
+    show_spinner,
+    timing_decorator,
+)
 
 # Global console for rich output
 console = Console()
