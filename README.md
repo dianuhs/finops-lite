@@ -26,7 +26,7 @@ Cloud cost management is often complex and overwhelming, especially for small te
 git clone https://github.com/dianuhs/finops-lite.git
 cd finops-lite
 pip install -e .
-finops cost overview --dry-run
+finops --dry-run cost overview
 ```
 
 ## Demo
@@ -316,6 +316,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Built with care for cloud cost optimization**
 
 *FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
+
 
 
 
