@@ -21,15 +21,17 @@ Cloud cost management is often complex and overwhelming, especially for small te
 
 ## What It Looks Like
 
-![Cost Overview](docs/images/demo-cost-overview.png)
+<img src="docs/images/demo-cost-overview.png" alt="Cost Overview" width="500">
 
 *Monthly cost totals with automatic fallback*
 
-![Cache Stats](docs/images/demo-cache-stats.png)
+
+<img src="docs/images/demo-cache-stats.png" alt="Cache Stats" width="300">
 
 *Performance metrics and caching details*
 
-![JSON Format](docs/images/demo-json-format.png)
+
+<img src="docs/images/demo-json-format.png" alt="JSON Format" width="400">
 
 *Structured output for automation and reporting*
 
@@ -330,6 +332,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Built with care for cloud cost optimization**
 
 *FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
+
 
 
 
