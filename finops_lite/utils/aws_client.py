@@ -11,12 +11,8 @@ from typing import Any, Dict, Optional
 import boto3
 import botocore
 from botocore.config import Config
-from botocore.exceptions import (
-    BotoCoreError,
-    ClientError,
-    NoCredentialsError,
-    PartialCredentialsError,
-)
+from botocore.exceptions import (BotoCoreError, ClientError,
+                                 NoCredentialsError, PartialCredentialsError)
 
 from .config import FinOpsConfig
 
