@@ -1,4 +1,3 @@
-
 # FinOps Lite
 
 **Professional AWS cost management in your terminal** — Lightning-fast cost visibility, optimization, and governance.
@@ -13,7 +12,7 @@
 
 ## Overview
 
-FinOps Lite is a Python-based CLI tool designed to simplify AWS cost management for small teams and enterprises. By providing clear cost insights, tag governance, and optimization recommendations, it empowers FinOps practitioners to reduce cloud waste and improve financial accountability. Built with performance and user experience in mind, it’s a practical solution for modern cloud cost challenges.
+FinOps Lite is a Python-based CLI tool designed to simplify AWS cost management for small teams and enterprises. By providing clear cost insights, tag governance, and optimization recommendations, it empowers FinOps practitioners to reduce cloud waste and improve financial accountability. Built with performance and user experience in mind, it's a practical solution for modern cloud cost challenges.
 
 ## Why FinOps Lite?
 
@@ -21,34 +20,35 @@ Cloud cost management is often complex and overwhelming, especially for small te
 
 ## What It Looks Like
 
+Monthly cost totals with automatic fallback <br>
 <img src="docs/images/demo-cost-overview.png" alt="Cost Overview" width="500">
+&nbsp;
 
-*Monthly cost totals with automatic fallback*
 
-
+Performance metrics and caching details <br>
 <img src="docs/images/demo-cache-stats.png" alt="Cache Stats" width="300">
+&nbsp;
 
-*Performance metrics and caching details*
 
-
+Structured output for automation and reporting <br>
 <img src="docs/images/demo-json-format.png" alt="JSON Format" width="400">
+&nbsp;
 
-*Structured output for automation and reporting*
 
 ## Sample Output
 
 ```bash
-$ AWS_PROFILE=finops-lite python3 -m finops_lite.cli
+$ AWS_PROFILE=finops-lite finops
 💰 AWS Cost Summary
 Month-to-Date Total: $1,247.83
 (Data from Dec 1-15, 2024)
 
-$ AWS_PROFILE=finops-lite python3 -m finops_lite.cli --last-month
+$ AWS_PROFILE=finops-lite finops --last-month
 💰 AWS Cost Summary  
 Last Month Total: $2,156.92
 (Data from Nov 1-30, 2024)
 
-$ AWS_PROFILE=finops-lite python3 -m finops_lite.cli services --days 30 --top 5
+$ AWS_PROFILE=finops-lite finops services --days 30 --top 5
 🔍 Top Services (Last 30 Days)
 1. EC2-Instance: $892.45
 2. Amazon RDS Service: $234.12  
@@ -354,6 +354,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Built with care for cloud cost optimization**
 
 *FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
+
 
 
 
