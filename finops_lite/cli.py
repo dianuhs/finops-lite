@@ -952,9 +952,7 @@ def main():
         handle_error(e, verbose=False)
         sys.exit(1)
 
+cli.add_command(signals)
 
 if __name__ == "__main__":
     main()
-
-cli.add_command(signals)
-
