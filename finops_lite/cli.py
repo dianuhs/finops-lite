@@ -337,10 +337,14 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                 }
 
                 console.print(
-                    f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]"
-                )
+    "[yellow]No cost data available for the specified period[/yellow]"
+)
 
-                content = formatter.format_cost_overview(demo_data, config.output.format)
+
+                content = formatter.format_cost_overview(
+    demo_data, config.output.format
+)
+
                 if content:
                     console.print(content)
 
@@ -586,9 +590,11 @@ def _show_optimization_opportunities(service_breakdown: list, format_cost):
     """Show potential cost optimization opportunities."""
     high_cost_services = [s for s in service_breakdown if s.total_cost > 100]
     trending_up_services = [
-        s for s in service_breakdown
-        if getattr(s, "trend", None) and s.trend.trend_direction == "up"
-    ]
+    s
+    for s in service_breakdown
+    if getattr(s, "trend", None) and s.trend.trend_direction == "up"
+]
+
 
     opportunities = []
 
@@ -878,7 +884,10 @@ def setup_config(interactive):
                 "This will help you configure FinOps Lite for your AWS environment.\n"
             )
             console.print("[green]Interactive setup coming soon![/green]")
-            console.print("For now, copy the template from config/templates/finops.yaml")
+            console.print(
+    "For now, copy the template from config/templates/finops.yaml"
+)
+
         else:
             console.print(
                 "Configuration template available at: config/templates/finops.yaml"
