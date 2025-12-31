@@ -366,12 +366,14 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
             ) as progress:
                 _ = progress.add_task("Generating demo data...", total=None)
 
-                summary_text = f"""
-[bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
-[bold]Total Cost:[/bold] [green]$2,847.23[/green]
-[bold]Daily Average:[/bold] $94.91
-[bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
+              summary_text = f"""
+[bold]Period:[/bold] Last {cost_analysis['period_days']} days
+[bold]Total Cost:[/bold] [green]{format_cost(total_cost)}[/green]
+[bold]Daily Average:[/bold] {format_cost(daily_avg)}
+[bold]Trend:[/bold] {trend_text} vs previous period
+[bold]Currency:[/bold] {currency}
 """
+
 
                 console.print(
                     Panel(
