@@ -9,13 +9,11 @@ from pathlib import Path
 from typing import Optional
 
 import click
-from rich import print as rich_print
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm
 from rich.table import Table
-from rich.text import Text
 
 from .reports.formatters import ReportFormatter
 from .signals.cli import signals
@@ -37,13 +35,7 @@ from .utils.errors import (
     validate_threshold,
 )
 from .utils.logger import setup_logger
-from .utils.performance import (
-    CacheManager,
-    PerformanceTracker,
-    performance_context,
-    show_spinner,
-    timing_decorator,
-)
+from .utils.performance import CacheManager, PerformanceTracker, show_spinner
 
 # Global console for rich output
 console = Console()
@@ -272,7 +264,7 @@ def _test_aws_connectivity(
 
         return result
 
-    except Exception as e:
+    except Exception:
         raise
 
 
@@ -332,6 +324,9 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
         if output_format:
             config.output.format = output_format
 
+        # -----------------------------
+        # DRY-RUN MODE (DEMO DATA ONLY)
+        # -----------------------------
         if dry_run:
             if config.output.format != "table":
                 formatter = ReportFormatter(config, console)
@@ -345,21 +340,16 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                     f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]"
                 )
 
-                content = formatter.format_cost_overview(
-                    demo_data, config.output.format
-                )
+                content = formatter.format_cost_overview(demo_data, config.output.format)
                 if content:
                     console.print(content)
 
                 if export_file:
-                    formatter.save_report(
-                        content, export_file, config.output.format
-                    )
+                    formatter.save_report(content, export_file, config.output.format)
                     console.print(
                         f"[green]Demo report exported to: {export_file}[/green]"
                     )
                 return
-
 
             console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
 
@@ -368,16 +358,14 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                 TextColumn("[progress.description]{task.description}"),
                 console=console,
             ) as progress:
-                _ = progress.add_task("Generating demo data...", total=None)
+                progress.add_task("Generating demo data...", total=None)
 
-              summary_text = f"""
-[bold]Period:[/bold] Last {cost_analysis['period_days']} days
-[bold]Total Cost:[/bold] [green]{format_cost(total_cost)}[/green]
-[bold]Daily Average:[/bold] {format_cost(daily_avg)}
-[bold]Trend:[/bold] {trend_text} vs previous period
-[bold]Currency:[/bold] {currency}
+                summary_text = f"""
+[bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
+[bold]Total Cost:[/bold] [green]$2,847.23[/green]
+[bold]Daily Average:[/bold] $94.91
+[bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
 """
-
 
                 console.print(
                     Panel(
@@ -406,11 +394,13 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
 
                 console.print(table)
                 console.print(
-                    "
-[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]"
+                    "\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]"
                 )
             return
 
+        # -----------------------------
+        # REAL AWS MODE
+        # -----------------------------
         try:
             _ = _test_aws_connectivity(config, logger, cache_manager)
 
@@ -589,16 +579,15 @@ def _display_cost_overview_real(
         if config.output.verbose:
             _show_optimization_opportunities(service_breakdown, format_cost)
     else:
-        console.print(
-            "[yellow]No cost data available for the specified period[/yellow]"
-        )
+        console.print("[yellow]No cost data available for the specified period[/yellow]")
 
 
 def _show_optimization_opportunities(service_breakdown: list, format_cost):
     """Show potential cost optimization opportunities."""
     high_cost_services = [s for s in service_breakdown if s.total_cost > 100]
     trending_up_services = [
-        s for s in service_breakdown if s.trend.trend_direction == "up"
+        s for s in service_breakdown
+        if getattr(s, "trend", None) and s.trend.trend_direction == "up"
     ]
 
     opportunities = []
@@ -740,7 +729,7 @@ def tag_compliance(ctx, service, fix):
             TextColumn("[progress.description]{task.description}"),
             console=console,
         ) as progress:
-            _ = progress.add_task("Scanning resources...", total=None)
+            progress.add_task("Scanning resources...", total=None)
             _display_tag_compliance_mock(config, service, fix)
 
     except Exception as e:
@@ -817,7 +806,7 @@ def rightsizing_recommendations(ctx, service, savings_threshold):
             TextColumn("[progress.description]{task.description}"),
             console=console,
         ) as progress:
-            _ = progress.add_task("Analyzing resource utilization...", total=None)
+            progress.add_task("Analyzing resource utilization...", total=None)
             _display_rightsizing_mock(config, service, savings_threshold)
 
     except ValidationError as e:
@@ -889,9 +878,7 @@ def setup_config(interactive):
                 "This will help you configure FinOps Lite for your AWS environment.\n"
             )
             console.print("[green]Interactive setup coming soon![/green]")
-            console.print(
-                "For now, copy the template from config/templates/finops.yaml"
-            )
+            console.print("For now, copy the template from config/templates/finops.yaml")
         else:
             console.print(
                 "Configuration template available at: config/templates/finops.yaml"
@@ -936,4 +923,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
