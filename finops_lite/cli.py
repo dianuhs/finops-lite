@@ -340,22 +340,26 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                     "total_cost": 2847.23,
                     "daily_average": 94.91,
                 }
+
                 console.print(
                     f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]"
                 )
+
                 content = formatter.format_cost_overview(
-                    demo_data,
-                    config.output.format,
+                    demo_data, config.output.format
                 )
                 if content:
                     console.print(content)
 
                 if export_file:
-                    formatter.save_report(content, export_file, config.output.format)
+                    formatter.save_report(
+                        content, export_file, config.output.format
+                    )
                     console.print(
                         f"[green]Demo report exported to: {export_file}[/green]"
                     )
                 return
+
 
             console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
 
