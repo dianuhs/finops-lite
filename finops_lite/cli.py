@@ -272,7 +272,7 @@ def _test_aws_connectivity(
 
         return result
 
-    except Exception as e:
+    except Exception:
         raise
 
 
@@ -400,8 +400,7 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
 
                 console.print(table)
                 console.print(
-                    "
-[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]"
+                    "\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]"
                 )
             return
 
