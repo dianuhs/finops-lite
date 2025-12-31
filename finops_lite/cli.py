@@ -9,11 +9,13 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from rich import print as rich_print
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm
 from rich.table import Table
+from rich.text import Text
 
 from .reports.formatters import ReportFormatter
 from .signals.cli import signals
@@ -38,7 +40,9 @@ from .utils.logger import setup_logger
 from .utils.performance import (
     CacheManager,
     PerformanceTracker,
+    performance_context,
     show_spinner,
+    timing_decorator,
 )
 
 # Global console for rich output
@@ -78,12 +82,15 @@ class FinOpsContext:
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress all output except errors")
 @click.option(
-    "--dry-run", is_flag=True, help="Show what would be done without making changes"
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be done without making changes",
 )
 @click.option(
     "--output-format",
     type=click.Choice(
-        ["table", "json", "csv", "yaml", "executive"], case_sensitive=False
+        ["table", "json", "csv", "yaml", "executive"],
+        case_sensitive=False,
     ),
     help="Output format",
 )
@@ -110,12 +117,12 @@ def cli(
     Professional AWS cost visibility, optimization, and governance tools.
 
     Examples:
-      finops cost overview                      # Get cost overview
-      finops cost overview --format json        # JSON output
-      finops --output-format csv cost overview  # CSV output
-      finops tags compliance                    # Tag compliance report
-      finops optimize rightsizing               # EC2 rightsizing recommendations
-      finops cache stats                        # Show cache statistics
+      finops cost overview                    # Get cost overview
+      finops cost overview --format json     # JSON output
+      finops --output-format csv cost overview # CSV output
+      finops tags compliance                  # Tag compliance report
+      finops optimize rightsizing            # EC2 rightsizing recommendations
+      finops cache stats                      # Show cache statistics
     """
     # Create context object
     ctx.ensure_object(FinOpsContext)
@@ -140,12 +147,13 @@ def cli(
 
         # Setup logger
         logger = setup_logger(
-            verbose=app_config.output.verbose, quiet=app_config.output.quiet
+            verbose=app_config.output.verbose,
+            quiet=app_config.output.quiet,
         )
 
         # Configure rich console
         if not app_config.output.color:
-            console._color_system = None  # type: ignore[attr-defined]
+            console._color_system = None
 
         # Initialize performance tracking
         performance_tracker = PerformanceTracker() if performance else None
@@ -166,10 +174,16 @@ def cli(
         sys.exit(1)
 
 
+# Register additional command groups
+cli.add_command(signals)
+
+
 @aws_error_mapper
 @retry_with_backoff(max_retries=2, base_delay=1.0, exceptions=(NetworkTimeoutError,))
 def _test_aws_connectivity(
-    config: FinOpsConfig, logger, cache_manager: Optional[CacheManager] = None
+    config: FinOpsConfig,
+    logger,
+    cache_manager: Optional[CacheManager] = None,
 ):
     """Test AWS connectivity and permissions with enhanced error handling and caching."""
     cache_key_params = {"profile": config.aws.profile, "region": config.aws.region}
@@ -177,7 +191,9 @@ def _test_aws_connectivity(
     # Check cache first
     if cache_manager:
         cached_result = cache_manager.get(
-            "aws_connectivity_test", "account_info", **cache_key_params
+            "aws_connectivity_test",
+            "account_info",
+            **cache_key_params,
         )
         if cached_result:
             return cached_result
@@ -225,7 +241,10 @@ def _test_aws_connectivity(
             # Cache the result
             if cache_manager:
                 cache_manager.set(
-                    "aws_connectivity_test", result, "account_info", **cache_key_params
+                    "aws_connectivity_test",
+                    result,
+                    "account_info",
+                    **cache_key_params,
                 )
 
         # Show connection info if verbose
@@ -253,8 +272,7 @@ def _test_aws_connectivity(
 
         return result
 
-    except Exception:
-        # The aws_error_mapper decorator will convert this to appropriate custom exceptions
+    except Exception as e:
         raise
 
 
@@ -277,7 +295,8 @@ def cost(ctx):
 @click.option(
     "--group-by",
     type=click.Choice(
-        ["SERVICE", "ACCOUNT", "REGION", "INSTANCE_TYPE"], case_sensitive=False
+        ["SERVICE", "ACCOUNT", "REGION", "INSTANCE_TYPE"],
+        case_sensitive=False,
     ),
     default="SERVICE",
     help="Group costs by dimension",
@@ -286,7 +305,8 @@ def cost(ctx):
     "--format",
     "output_format",
     type=click.Choice(
-        ["table", "json", "csv", "yaml", "executive"], case_sensitive=False
+        ["table", "json", "csv", "yaml", "executive"],
+        case_sensitive=False,
     ),
     help="Output format (overrides global setting)",
 )
@@ -305,17 +325,14 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
     cache_manager = ctx.obj.cache_manager
     performance_tracker = ctx.obj.performance_tracker
 
-    # Start performance tracking
     if performance_tracker:
         performance_tracker.start_operation("cost_overview")
 
     try:
-        # Override format if specified
         if output_format:
             config.output.format = output_format
 
         if dry_run:
-            # Check if non-table format requested
             if config.output.format != "table":
                 formatter = ReportFormatter(config, console)
                 demo_data = {
@@ -326,17 +343,20 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                 console.print(
                     f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]"
                 )
-                content = formatter.format_cost_overview(demo_data, config.output.format)
+                content = formatter.format_cost_overview(
+                    demo_data,
+                    config.output.format,
+                )
                 if content:
                     console.print(content)
 
-                # Handle export
                 if export_file:
                     formatter.save_report(content, export_file, config.output.format)
-                    console.print(f"[green]Demo report exported to: {export_file}[/green]")
+                    console.print(
+                        f"[green]Demo report exported to: {export_file}[/green]"
+                    )
                 return
 
-            # Existing beautiful table format (unchanged)
             console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
 
             with Progress(
@@ -344,9 +364,8 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                 TextColumn("[progress.description]{task.description}"),
                 console=console,
             ) as progress:
-                progress.add_task("Generating demo data...", total=None)
+                _ = progress.add_task("Generating demo data...", total=None)
 
-                # Demo summary
                 summary_text = f"""
 [bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
 [bold]Total Cost:[/bold] [green]$2,847.23[/green]
@@ -362,7 +381,6 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                     )
                 )
 
-                # Demo table
                 table = Table(title="💸 Top AWS Services (Demo)")
                 table.add_column("Service", style="cyan", no_wrap=True)
                 table.add_column("Cost", style="green", justify="right")
@@ -377,21 +395,19 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                     ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
                 ]
 
-                for service, cost, percent, trend in demo_services:
-                    table.add_row(service, cost, percent, trend)
+                for service, cost_amt, percent, trend_icon in demo_services:
+                    table.add_row(service, cost_amt, percent, trend_icon)
 
                 console.print(table)
                 console.print(
-                    "\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]"
+                    "
+[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]"
                 )
             return
 
-        # Real AWS mode with caching
         try:
-            # Test AWS connectivity only when actually needed
-            _test_aws_connectivity(config, logger, cache_manager)
+            _ = _test_aws_connectivity(config, logger, cache_manager)
 
-            # Check cache for cost data (unless force refresh)
             cache_key_params = {
                 "days": days,
                 "group_by": group_by,
@@ -402,12 +418,13 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
             cost_analysis = None
             if cache_manager and not force_refresh:
                 cost_analysis = cache_manager.get(
-                    "cost_overview", "cost_data", **cache_key_params
+                    "cost_overview",
+                    "cost_data",
+                    **cache_key_params,
                 )
                 if cost_analysis and performance_tracker:
                     performance_tracker.record_cache_hit()
 
-            # If no cached data, fetch from AWS
             if not cost_analysis:
                 with Progress(
                     SpinnerColumn(),
@@ -416,7 +433,6 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                 ) as progress:
                     task = progress.add_task("Fetching cost data...", total=None)
 
-                    # Use real AWS Cost Explorer service with retry logic
                     from .core.cost_explorer import CostExplorerService
 
                     cost_service = CostExplorerService(config)
@@ -427,7 +443,6 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                     if performance_tracker:
                         performance_tracker.record_api_call()
 
-                    # Cache the result
                     if cache_manager:
                         cache_manager.set(
                             "cost_overview",
@@ -438,19 +453,23 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
 
                     progress.update(task, description="Formatting results...")
 
-            # Format and display based on format
             if config.output.format == "table":
                 _display_cost_overview_real(config, cost_analysis, group_by)
             else:
                 formatter = ReportFormatter(config, console)
-                content = formatter.format_cost_overview(cost_analysis, config.output.format)
+                content = formatter.format_cost_overview(
+                    cost_analysis,
+                    config.output.format,
+                )
                 if content:
                     console.print(content)
 
-            # Handle export for real data
             if export_file:
                 formatter = ReportFormatter(config, console)
-                content = formatter.format_cost_overview(cost_analysis, config.output.format)
+                content = formatter.format_cost_overview(
+                    cost_analysis,
+                    config.output.format,
+                )
                 if content:
                     formatter.save_report(content, export_file, config.output.format)
                     console.print(f"[green]Report exported to: {export_file}[/green]")
@@ -495,7 +514,11 @@ def _get_cost_data_with_retry(cost_service, days):
     return cost_service.get_monthly_cost_overview(days)
 
 
-def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group_by: str):
+def _display_cost_overview_real(
+    config: FinOpsConfig,
+    cost_analysis: dict,
+    group_by: str,
+):
     """Display real cost overview from AWS Cost Explorer."""
     currency = config.output.currency
     decimal_places = config.output.decimal_places
@@ -560,7 +583,9 @@ def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group
         if config.output.verbose:
             _show_optimization_opportunities(service_breakdown, format_cost)
     else:
-        console.print("[yellow]No cost data available for the specified period[/yellow]")
+        console.print(
+            "[yellow]No cost data available for the specified period[/yellow]"
+        )
 
 
 def _show_optimization_opportunities(service_breakdown: list, format_cost):
@@ -634,10 +659,10 @@ def cache_stats(ctx):
         table.add_column("Value", style="green")
 
         table.add_row("Cache Entries", str(stats["cache_entries"]))
-        table.add_row("Cache Size", f'{stats["cache_size_mb"]} MB')
-        table.add_row("Hit Rate", f'{stats["hit_rate_percent"]}%')
+        table.add_row("Cache Size", f"{stats['cache_size_mb']} MB")
+        table.add_row("Hit Rate", f"{stats['hit_rate_percent']}%")
         table.add_row("API Calls Saved", str(stats["api_calls_saved"]))
-        table.add_row("Est. Cost Savings", f'${stats["estimated_cost_savings"]}')
+        table.add_row("Est. Cost Savings", f"${stats['estimated_cost_savings']}")
         table.add_row("Cache Hits", str(stats["cache_hits"]))
         table.add_row("Cache Misses", str(stats["cache_misses"]))
 
@@ -709,7 +734,7 @@ def tag_compliance(ctx, service, fix):
             TextColumn("[progress.description]{task.description}"),
             console=console,
         ) as progress:
-            progress.add_task("Scanning resources...", total=None)
+            _ = progress.add_task("Scanning resources...", total=None)
             _display_tag_compliance_mock(config, service, fix)
 
     except Exception as e:
@@ -726,7 +751,9 @@ def _display_tag_compliance_mock(config: FinOpsConfig, service_filter: str, fix:
 [bold]Required Tags:[/bold] {', '.join(config.tagging.required_tags)}
 """
 
-    console.print(Panel(summary_text, title="🏷️  Tag Compliance Report", border_style="blue"))
+    console.print(
+        Panel(summary_text, title="🏷️  Tag Compliance Report", border_style="blue")
+    )
 
     table = Table(title="❌ Non-Compliant Resources")
     table.add_column("Resource", style="cyan")
@@ -784,7 +811,7 @@ def rightsizing_recommendations(ctx, service, savings_threshold):
             TextColumn("[progress.description]{task.description}"),
             console=console,
         ) as progress:
-            progress.add_task("Analyzing resource utilization...", total=None)
+            _ = progress.add_task("Analyzing resource utilization...", total=None)
             _display_rightsizing_mock(config, service, savings_threshold)
 
     except ValidationError as e:
@@ -804,7 +831,9 @@ def _display_rightsizing_mock(config: FinOpsConfig, service: str, threshold: flo
 [bold]Potential Monthly Savings:[/bold] [green]${threshold * 45.68:.2f}[/green]
 """
 
-    console.print(Panel(summary_text, title="🚀 Rightsizing Analysis", border_style="green"))
+    console.print(
+        Panel(summary_text, title="🚀 Rightsizing Analysis", border_style="green")
+    )
 
     table = Table(title="💡 Rightsizing Recommendations")
     table.add_column("Resource", style="cyan")
@@ -854,9 +883,13 @@ def setup_config(interactive):
                 "This will help you configure FinOps Lite for your AWS environment.\n"
             )
             console.print("[green]Interactive setup coming soon![/green]")
-            console.print("For now, copy the template from config/templates/finops.yaml")
+            console.print(
+                "For now, copy the template from config/templates/finops.yaml"
+            )
         else:
-            console.print("Configuration template available at: config/templates/finops.yaml")
+            console.print(
+                "Configuration template available at: config/templates/finops.yaml"
+            )
             console.print("Copy it to one of these locations:")
             console.print("  • ./finops.yaml")
             console.print("  • ~/.config/finops/config.yaml")
@@ -883,10 +916,6 @@ Built with ❤️  for cloud cost optimization
         handle_error(e, verbose=False)
 
 
-# Register additional command groups
-cli.add_command(signals)
-
-
 def main():
     """Main entry point for the CLI."""
     try:
@@ -901,3 +930,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
