@@ -17,8 +17,8 @@ from rich.prompt import Confirm
 from rich.table import Table
 from rich.text import Text
 
-from .signals.cli import signals
 from .reports.formatters import ReportFormatter
+from .signals.cli import signals
 from .utils.config import FinOpsConfig, load_config
 from .utils.errors import (
     APIRateLimitError,
