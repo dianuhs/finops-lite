@@ -1,4 +1,3 @@
---- finops_lite/__init__.py ---
 """
 FinOps Lite - AWS FinOps CLI for cost visibility, optimization, and governance.
 
