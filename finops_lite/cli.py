@@ -1,21 +1,25 @@
 """
 Enhanced CLI interface for FinOps Lite.
 Professional-grade AWS cost management with caching and performance optimizations.
+
+Upgrades in this version:
+- Adds `finops cost monthly` for calendar month reporting (YYYY-MM)
+- Adds `finops cost compare` for month vs month comparisons (YYYY-MM vs YYYY-MM)
+- Keeps `finops cost overview` behavior intact
+- Uses real formatter outputs (no demo placeholders) via updated ReportFormatter
 """
 
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
-from rich import print as rich_print
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm
 from rich.table import Table
-from rich.text import Text
 
 from .reports.formatters import ReportFormatter
 from .signals.cli import signals
@@ -40,16 +44,12 @@ from .utils.logger import setup_logger
 from .utils.performance import (
     CacheManager,
     PerformanceTracker,
-    performance_context,
     show_spinner,
-    timing_decorator,
 )
 
-# Global console for rich output
 console = Console()
 
 
-# Context object to pass data between commands
 class FinOpsContext:
     def __init__(self):
         self.config: Optional[FinOpsConfig] = None
@@ -61,77 +61,36 @@ class FinOpsContext:
 
 
 @click.group()
-@click.option(
-    "--config",
-    "-c",
-    type=click.Path(exists=True, path_type=Path),
-    help="Path to configuration file",
-)
-@click.option(
-    "--profile",
-    "-p",
-    help="AWS profile to use",
-    callback=lambda ctx, param, value: validate_aws_profile(value) if value else None,
-)
-@click.option(
-    "--region",
-    "-r",
-    help="AWS region to use",
-    callback=lambda ctx, param, value: validate_aws_region(value) if value else None,
-)
+@click.option("--config", "-c", type=click.Path(exists=True, path_type=Path), help="Path to configuration file")
+@click.option("--profile", "-p", help="AWS profile to use", callback=lambda ctx, param, value: validate_aws_profile(value) if value else None)
+@click.option("--region", "-r", help="AWS region to use", callback=lambda ctx, param, value: validate_aws_region(value) if value else None)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress all output except errors")
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    help="Show what would be done without making changes",
-)
+@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
 @click.option(
     "--output-format",
-    type=click.Choice(
-        ["table", "json", "csv", "yaml", "executive"],
-        case_sensitive=False,
-    ),
+    type=click.Choice(["table", "json", "csv", "yaml", "executive"], case_sensitive=False),
     help="Output format",
 )
 @click.option("--no-color", is_flag=True, help="Disable colored output")
 @click.option("--no-cache", is_flag=True, help="Disable caching for this operation")
 @click.option("--performance", is_flag=True, help="Show detailed performance metrics")
 @click.pass_context
-def cli(
-    ctx,
-    config,
-    profile,
-    region,
-    verbose,
-    quiet,
-    dry_run,
-    output_format,
-    no_color,
-    no_cache,
-    performance,
-):
+def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no_color, no_cache, performance):
     """
     🔥 FinOps Lite - AWS Cost Management CLI
 
-    Professional AWS cost visibility, optimization, and governance tools.
-
     Examples:
-      finops cost overview                    # Get cost overview
-      finops cost overview --format json     # JSON output
-      finops --output-format csv cost overview # CSV output
-      finops tags compliance                  # Tag compliance report
-      finops optimize rightsizing            # EC2 rightsizing recommendations
-      finops cache stats                      # Show cache statistics
+      finops cost overview
+      finops cost overview --format json
+      finops cost monthly --month 2026-01
+      finops cost compare --current 2026-01 --baseline 2025-12
     """
-    # Create context object
     ctx.ensure_object(FinOpsContext)
 
     try:
-        # Load configuration
         app_config = load_config(config)
 
-        # Override config with CLI options
         if profile:
             app_config.aws.profile = profile
         if region:
@@ -145,23 +104,14 @@ def cli(
         if quiet:
             app_config.output.quiet = True
 
-        # Setup logger
-        logger = setup_logger(
-            verbose=app_config.output.verbose,
-            quiet=app_config.output.quiet,
-        )
+        logger = setup_logger(verbose=app_config.output.verbose, quiet=app_config.output.quiet)
 
-        # Configure rich console
         if not app_config.output.color:
             console._color_system = None
 
-        # Initialize performance tracking
         performance_tracker = PerformanceTracker() if performance else None
-
-        # Initialize cache manager (unless disabled)
         cache_manager = None if no_cache else CacheManager()
 
-        # Store in context
         ctx.obj.config = app_config
         ctx.obj.logger = logger
         ctx.obj.verbose = verbose
@@ -174,106 +124,90 @@ def cli(
         sys.exit(1)
 
 
-# Register additional command groups
 cli.add_command(signals)
 
 
 @aws_error_mapper
 @retry_with_backoff(max_retries=2, base_delay=1.0, exceptions=(NetworkTimeoutError,))
-def _test_aws_connectivity(
-    config: FinOpsConfig,
-    logger,
-    cache_manager: Optional[CacheManager] = None,
-):
-    """Test AWS connectivity and permissions with enhanced error handling and caching."""
+def _test_aws_connectivity(config: FinOpsConfig, logger, cache_manager: Optional[CacheManager] = None):
     cache_key_params = {"profile": config.aws.profile, "region": config.aws.region}
 
-    # Check cache first
     if cache_manager:
-        cached_result = cache_manager.get(
-            "aws_connectivity_test",
-            "account_info",
-            **cache_key_params,
-        )
+        cached_result = cache_manager.get("aws_connectivity_test", "account_info", **cache_key_params)
         if cached_result:
             return cached_result
 
-    try:
-        with show_spinner("Testing AWS connectivity..."):
-            session = config.get_boto3_session()
-            sts = session.client("sts")
-            identity = sts.get_caller_identity()
+    with show_spinner("Testing AWS connectivity..."):
+        session = config.get_boto3_session()
+        sts = session.client("sts")
+        identity = sts.get_caller_identity()
 
-            # Test Cost Explorer specifically
-            ce = session.client("ce")
+        ce = session.client("ce")
+        try:
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=7)
 
-            # Make a minimal Cost Explorer call to test permissions
-            try:
-                end_date = datetime.now().date()
-                start_date = end_date - timedelta(days=7)
-
-                ce.get_cost_and_usage(
-                    TimePeriod={
-                        "Start": start_date.strftime("%Y-%m-%d"),
-                        "End": end_date.strftime("%Y-%m-%d"),
-                    },
-                    Granularity="MONTHLY",
-                    Metrics=["BlendedCost"],
-                )
-                cost_explorer_status = "available"
-            except Exception as ce_error:
-                error_msg = str(ce_error).lower()
-                if "data is not available" in error_msg or "warming up" in error_msg:
-                    cost_explorer_status = "warming_up"
-                elif "not enabled" in error_msg:
-                    cost_explorer_status = "not_enabled"
-                else:
-                    cost_explorer_status = "permission_issue"
-
-            # Prepare result
-            result = {
-                "account_id": identity.get("Account", "Unknown"),
-                "user_arn": identity.get("Arn", "Unknown"),
-                "region": config.aws.region or session.region_name or "Unknown",
-                "cost_explorer_status": cost_explorer_status,
-            }
-
-            # Cache the result
-            if cache_manager:
-                cache_manager.set(
-                    "aws_connectivity_test",
-                    result,
-                    "account_info",
-                    **cache_key_params,
-                )
-
-        # Show connection info if verbose
-        if config.output.verbose:
-            table = Table(title="AWS Connection Info")
-            table.add_column("Property", style="cyan")
-            table.add_column("Value", style="green")
-
-            table.add_row("Account ID", result["account_id"])
-            table.add_row("User/Role", result["user_arn"].split("/")[-1])
-            table.add_row("Region", result["region"])
-
-            status_display = {
-                "available": "[green]✅ Available[/green]",
-                "warming_up": "[yellow]⏳ Warming up[/yellow]",
-                "not_enabled": "[red]❌ Not enabled[/red]",
-                "permission_issue": "[yellow]⚠️  Permission issue[/yellow]",
-            }
-            table.add_row(
-                "Cost Explorer",
-                status_display.get(result["cost_explorer_status"], "Unknown"),
+            ce.get_cost_and_usage(
+                TimePeriod={"Start": start_date.strftime("%Y-%m-%d"), "End": end_date.strftime("%Y-%m-%d")},
+                Granularity="MONTHLY",
+                Metrics=["BlendedCost"],
             )
+            cost_explorer_status = "available"
+        except Exception as ce_error:
+            error_msg = str(ce_error).lower()
+            if "data is not available" in error_msg or "warming up" in error_msg:
+                cost_explorer_status = "warming_up"
+            elif "not enabled" in error_msg:
+                cost_explorer_status = "not_enabled"
+            else:
+                cost_explorer_status = "permission_issue"
 
-            console.print(table)
+        result = {
+            "account_id": identity.get("Account", "Unknown"),
+            "user_arn": identity.get("Arn", "Unknown"),
+            "region": config.aws.region or session.region_name or "Unknown",
+            "cost_explorer_status": cost_explorer_status,
+        }
 
-        return result
+        if cache_manager:
+            cache_manager.set("aws_connectivity_test", result, "account_info", **cache_key_params)
 
+    if config.output.verbose:
+        table = Table(title="AWS Connection Info")
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="green")
+        table.add_row("Account ID", result["account_id"])
+        table.add_row("User/Role", result["user_arn"].split("/")[-1])
+        table.add_row("Region", result["region"])
+
+        status_display = {
+            "available": "[green]✅ Available[/green]",
+            "warming_up": "[yellow]⏳ Warming up[/yellow]",
+            "not_enabled": "[red]❌ Not enabled[/red]",
+            "permission_issue": "[yellow]⚠️  Permission issue[/yellow]",
+        }
+        table.add_row("Cost Explorer", status_display.get(result["cost_explorer_status"], "Unknown"))
+        console.print(table)
+
+    return result
+
+
+def _parse_yyyymm(value: str) -> Tuple[int, int]:
+    """
+    Parse YYYY-MM into (year, month).
+    Raises ValidationError for bad input.
+    """
+    try:
+        parts = value.strip().split("-")
+        if len(parts) != 2:
+            raise ValueError
+        year = int(parts[0])
+        month = int(parts[1])
+        if month < 1 or month > 12:
+            raise ValueError
+        return year, month
     except Exception:
-        raise
+        raise ValidationError("Month must be in YYYY-MM format (example: 2026-01)")
 
 
 @cli.group()
@@ -284,37 +218,10 @@ def cost(ctx):
 
 
 @cost.command("overview")
-@click.option(
-    "--days",
-    "-d",
-    default=30,
-    type=int,
-    help="Number of days to analyze (default: 30)",
-    callback=lambda ctx, param, value: validate_days(value) if value else 30,
-)
-@click.option(
-    "--group-by",
-    type=click.Choice(
-        ["SERVICE", "ACCOUNT", "REGION", "INSTANCE_TYPE"],
-        case_sensitive=False,
-    ),
-    default="SERVICE",
-    help="Group costs by dimension",
-)
-@click.option(
-    "--format",
-    "output_format",
-    type=click.Choice(
-        ["table", "json", "csv", "yaml", "executive"],
-        case_sensitive=False,
-    ),
-    help="Output format (overrides global setting)",
-)
-@click.option(
-    "--export",
-    "export_file",
-    help="Export report to file (e.g., report.json, costs.csv)",
-)
+@click.option("--days", "-d", default=30, type=int, help="Number of days to analyze (default: 30)", callback=lambda ctx, param, value: validate_days(value) if value else 30)
+@click.option("--group-by", type=click.Choice(["SERVICE", "ACCOUNT", "REGION", "INSTANCE_TYPE"], case_sensitive=False), default="SERVICE", help="Group costs by dimension")
+@click.option("--format", "output_format", type=click.Choice(["table", "json", "csv", "yaml", "executive"], case_sensitive=False), help="Output format (overrides global setting)")
+@click.option("--export", "export_file", help="Export report to file (e.g., report.json, costs.csv)")
 @click.option("--force-refresh", is_flag=True, help="Force refresh of cached data")
 @click.pass_context
 def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh):
@@ -333,160 +240,63 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
             config.output.format = output_format
 
         if dry_run:
-            if config.output.format != "table":
-                formatter = ReportFormatter(config, console)
-                demo_data = {
-                    "period_days": days,
-                    "total_cost": 2847.23,
-                    "daily_average": 94.91,
-                }
-                console.print(
-                    f"[yellow]Generating {config.output.format.upper()} format (demo data)...[/yellow]"
-                )
-                content = formatter.format_cost_overview(
-                    demo_data,
-                    config.output.format,
-                )
-                if content:
-                    console.print(content)
-
-                if export_file:
-                    formatter.save_report(content, export_file, config.output.format)
-                    console.print(
-                        f"[green]Demo report exported to: {export_file}[/green]"
-                    )
-                return
-
-            console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                _ = progress.add_task("Generating demo data...", total=None)
-
-                summary_text = f"""
-[bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
-[bold]Total Cost:[/bold] [green]$2,847.23[/green]
-[bold]Daily Average:[/bold] $94.91
-[bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
-"""
-
-                console.print(
-                    Panel(
-                        summary_text,
-                        title="📊 Cost Summary (Demo)",
-                        border_style="blue",
-                    )
-                )
-
-                table = Table(title="💸 Top AWS Services (Demo)")
-                table.add_column("Service", style="cyan", no_wrap=True)
-                table.add_column("Cost", style="green", justify="right")
-                table.add_column("% of Total", style="yellow", justify="right")
-                table.add_column("Trend", justify="center")
-
-                demo_services = [
-                    ("Amazon EC2", "$1,234.56", "43.4%", "[red]↗[/red]"),
-                    ("Amazon RDS", "$543.21", "19.1%", "[green]↘[/green]"),
-                    ("Amazon S3", "$321.45", "11.3%", "[blue]→[/blue]"),
-                    ("AWS Lambda", "$198.76", "7.0%", "[green]↘[/green]"),
-                    ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
-                ]
-
-                for service, cost_amt, percent, trend_icon in demo_services:
-                    table.add_row(service, cost_amt, percent, trend_icon)
-
-                console.print(table)
-                console.print(
-                    "\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]"
-                )
+            console.print("[yellow]Dry-run mode: showing demo table only[/yellow]")
+            _display_cost_overview_demo(days)
             return
 
-        try:
-            _ = _test_aws_connectivity(config, logger, cache_manager)
+        _ = _test_aws_connectivity(config, logger, cache_manager)
 
-            cache_key_params = {
-                "days": days,
-                "group_by": group_by,
-                "profile": config.aws.profile,
-                "region": config.aws.region,
-            }
+        cache_key_params = {
+            "kind": "rolling_days",
+            "days": days,
+            "group_by": group_by,
+            "profile": config.aws.profile,
+            "region": config.aws.region,
+        }
 
-            cost_analysis = None
-            if cache_manager and not force_refresh:
-                cost_analysis = cache_manager.get(
-                    "cost_overview",
-                    "cost_data",
-                    **cache_key_params,
-                )
-                if cost_analysis and performance_tracker:
-                    performance_tracker.record_cache_hit()
+        cost_analysis = None
+        if cache_manager and not force_refresh:
+            cost_analysis = cache_manager.get("cost_overview", "cost_data", **cache_key_params)
+            if cost_analysis and performance_tracker:
+                performance_tracker.record_cache_hit()
 
-            if not cost_analysis:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    task = progress.add_task("Fetching cost data...", total=None)
+        if not cost_analysis:
+            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+                task = progress.add_task("Fetching cost data...", total=None)
 
-                    from .core.cost_explorer import CostExplorerService
+                from .core.cost_explorer import CostExplorerService
 
-                    cost_service = CostExplorerService(config)
+                cost_service = CostExplorerService(config)
 
-                    progress.update(task, description="Analyzing costs...")
-                    cost_analysis = _get_cost_data_with_retry(cost_service, days)
+                progress.update(task, description="Analyzing costs...")
+                cost_analysis = _get_cost_data_with_retry(cost_service, days)
 
-                    if performance_tracker:
-                        performance_tracker.record_api_call()
+                if performance_tracker:
+                    performance_tracker.record_api_call()
 
-                    if cache_manager:
-                        cache_manager.set(
-                            "cost_overview",
-                            cost_analysis,
-                            "cost_data",
-                            **cache_key_params,
-                        )
+                if cache_manager:
+                    cache_manager.set("cost_overview", cost_analysis, "cost_data", **cache_key_params)
 
-                    progress.update(task, description="Formatting results...")
+                progress.update(task, description="Formatting results...")
 
-            if config.output.format == "table":
-                _display_cost_overview_real(config, cost_analysis, group_by)
-            else:
-                formatter = ReportFormatter(config, console)
-                content = formatter.format_cost_overview(
-                    cost_analysis,
-                    config.output.format,
-                )
-                if content:
-                    console.print(content)
+        _render_cost_output(config, cost_analysis, group_by)
 
-            if export_file:
-                formatter = ReportFormatter(config, console)
-                content = formatter.format_cost_overview(
-                    cost_analysis,
-                    config.output.format,
-                )
-                if content:
-                    formatter.save_report(content, export_file, config.output.format)
-                    console.print(f"[green]Report exported to: {export_file}[/green]")
+        if export_file:
+            formatter = ReportFormatter(config, console)
+            content = formatter.format_cost_overview(cost_analysis, config.output.format)
+            if content:
+                formatter.save_report(content, export_file, config.output.format)
+                console.print(f"[green]Report exported to: {export_file}[/green]")
 
-        except (
-            CostExplorerNotEnabledError,
-            CostExplorerWarmingUpError,
-            AWSCredentialsError,
-            AWSPermissionError,
-            APIRateLimitError,
-            NetworkTimeoutError,
-        ) as e:
-            if performance_tracker:
-                performance_tracker.record_error()
-            handle_error(e, config.output.verbose)
-            sys.exit(1)
-
-    except ValidationError as e:
+    except (
+        CostExplorerNotEnabledError,
+        CostExplorerWarmingUpError,
+        AWSCredentialsError,
+        AWSPermissionError,
+        APIRateLimitError,
+        NetworkTimeoutError,
+        ValidationError,
+    ) as e:
         if performance_tracker:
             performance_tracker.record_error()
         handle_error(e, config.output.verbose)
@@ -502,55 +312,271 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
             performance_tracker.show_summary(verbose=config.output.verbose)
 
 
+@cost.command("monthly")
+@click.option("--month", "month_str", required=True, help="Calendar month in YYYY-MM (example: 2026-01)")
+@click.option("--format", "output_format", type=click.Choice(["table", "json", "csv", "yaml", "executive"], case_sensitive=False), help="Output format (overrides global setting)")
+@click.option("--export", "export_file", help="Export report to file (e.g., report.json, costs.csv)")
+@click.option("--force-refresh", is_flag=True, help="Force refresh of cached data")
+@click.pass_context
+def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
+    """Calendar month report (YYYY-MM) vs previous month."""
+    config = ctx.obj.config
+    logger = ctx.obj.logger
+    dry_run = ctx.obj.dry_run
+    cache_manager = ctx.obj.cache_manager
+    performance_tracker = ctx.obj.performance_tracker
+
+    if performance_tracker:
+        performance_tracker.start_operation("cost_monthly")
+
+    try:
+        if output_format:
+            config.output.format = output_format
+
+        year, month = _parse_yyyymm(month_str)
+
+        if dry_run:
+            console.print("[yellow]Dry-run mode: showing demo table only[/yellow]")
+            _display_cost_overview_demo(30)
+            return
+
+        _ = _test_aws_connectivity(config, logger, cache_manager)
+
+        cache_key_params = {
+            "kind": "calendar_month",
+            "month": f"{year:04d}-{month:02d}",
+            "profile": config.aws.profile,
+            "region": config.aws.region,
+        }
+
+        analysis = None
+        if cache_manager and not force_refresh:
+            analysis = cache_manager.get("cost_monthly", "cost_data", **cache_key_params)
+            if analysis and performance_tracker:
+                performance_tracker.record_cache_hit()
+
+        if not analysis:
+            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+                task = progress.add_task("Fetching monthly cost data...", total=None)
+
+                from .core.cost_explorer import CostExplorerService
+
+                svc = CostExplorerService(config)
+
+                progress.update(task, description=f"Analyzing {year:04d}-{month:02d}...")
+                analysis = svc.get_month_cost_overview(year, month)
+
+                if performance_tracker:
+                    performance_tracker.record_api_call()
+
+                if cache_manager:
+                    cache_manager.set("cost_monthly", analysis, "cost_data", **cache_key_params)
+
+                progress.update(task, description="Formatting results...")
+
+        _render_cost_output(config, analysis, group_by="SERVICE")
+
+        if export_file:
+            formatter = ReportFormatter(config, console)
+            content = formatter.format_cost_overview(analysis, config.output.format)
+            if content:
+                formatter.save_report(content, export_file, config.output.format)
+                console.print(f"[green]Report exported to: {export_file}[/green]")
+
+    except Exception as e:
+        if performance_tracker:
+            performance_tracker.record_error()
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
+    finally:
+        if performance_tracker:
+            performance_tracker.finish_current_operation()
+            performance_tracker.show_summary(verbose=config.output.verbose)
+
+
+@cost.command("compare")
+@click.option("--current", "current_month", required=True, help="Current month in YYYY-MM (example: 2026-01)")
+@click.option("--baseline", "baseline_month", required=True, help="Baseline month in YYYY-MM (example: 2025-12)")
+@click.option("--format", "output_format", type=click.Choice(["table", "json", "csv", "yaml", "executive"], case_sensitive=False), help="Output format (overrides global setting)")
+@click.option("--export", "export_file", help="Export report to file (e.g., report.json, costs.csv)")
+@click.option("--force-refresh", is_flag=True, help="Force refresh of cached data")
+@click.pass_context
+def cost_compare(ctx, current_month, baseline_month, output_format, export_file, force_refresh):
+    """Compare two calendar months (YYYY-MM vs YYYY-MM)."""
+    config = ctx.obj.config
+    logger = ctx.obj.logger
+    dry_run = ctx.obj.dry_run
+    cache_manager = ctx.obj.cache_manager
+    performance_tracker = ctx.obj.performance_tracker
+
+    if performance_tracker:
+        performance_tracker.start_operation("cost_compare")
+
+    try:
+        if output_format:
+            config.output.format = output_format
+
+        cy, cm = _parse_yyyymm(current_month)
+        by, bm = _parse_yyyymm(baseline_month)
+
+        if dry_run:
+            console.print("[yellow]Dry-run mode: showing demo table only[/yellow]")
+            _display_cost_overview_demo(30)
+            return
+
+        _ = _test_aws_connectivity(config, logger, cache_manager)
+
+        cache_key_params = {
+            "kind": "compare_months",
+            "current": f"{cy:04d}-{cm:02d}",
+            "baseline": f"{by:04d}-{bm:02d}",
+            "profile": config.aws.profile,
+            "region": config.aws.region,
+        }
+
+        analysis = None
+        if cache_manager and not force_refresh:
+            analysis = cache_manager.get("cost_compare", "cost_data", **cache_key_params)
+            if analysis and performance_tracker:
+                performance_tracker.record_cache_hit()
+
+        if not analysis:
+            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+                task = progress.add_task("Fetching comparison data...", total=None)
+
+                from .core.cost_explorer import CostExplorerService
+
+                svc = CostExplorerService(config)
+
+                progress.update(task, description=f"Comparing {cy:04d}-{cm:02d} vs {by:04d}-{bm:02d}...")
+                analysis = svc.compare_months(cy, cm, by, bm)
+
+                if performance_tracker:
+                    performance_tracker.record_api_call()
+
+                if cache_manager:
+                    cache_manager.set("cost_compare", analysis, "cost_data", **cache_key_params)
+
+                progress.update(task, description="Rendering results...")
+
+        if (config.output.format or "table").lower() == "table":
+            _display_month_compare_table(config, analysis)
+        else:
+            formatter = ReportFormatter(config, console)
+            content = formatter.format_cost_overview(analysis, config.output.format)
+            if content:
+                console.print(content)
+
+        if export_file:
+            formatter = ReportFormatter(config, console)
+            content = formatter.format_cost_overview(analysis, config.output.format)
+            if content:
+                formatter.save_report(content, export_file, config.output.format)
+                console.print(f"[green]Report exported to: {export_file}[/green]")
+
+    except Exception as e:
+        if performance_tracker:
+            performance_tracker.record_error()
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
+    finally:
+        if performance_tracker:
+            performance_tracker.finish_current_operation()
+            performance_tracker.show_summary(verbose=config.output.verbose)
+
+
 @aws_error_mapper
-@retry_with_backoff(
-    max_retries=3,
-    base_delay=2.0,
-    exceptions=(APIRateLimitError, NetworkTimeoutError),
-)
+@retry_with_backoff(max_retries=3, base_delay=2.0, exceptions=(APIRateLimitError, NetworkTimeoutError))
 def _get_cost_data_with_retry(cost_service, days):
-    """Get cost data with automatic retry for transient errors."""
     return cost_service.get_monthly_cost_overview(days)
 
 
-def _display_cost_overview_real(
-    config: FinOpsConfig,
-    cost_analysis: dict,
-    group_by: str,
-):
-    """Display real cost overview from AWS Cost Explorer."""
+def _render_cost_output(config: FinOpsConfig, cost_analysis: dict, group_by: str):
+    if (config.output.format or "table").lower() == "table":
+        _display_cost_overview_real(config, cost_analysis, group_by)
+    else:
+        formatter = ReportFormatter(config, console)
+        content = formatter.format_cost_overview(cost_analysis, config.output.format)
+        if content:
+            console.print(content)
+
+
+def _display_cost_overview_demo(days: int):
+    summary_text = f"""
+[bold]Period:[/bold] Last {days} days ([italic]DEMO DATA[/italic])
+[bold]Total Cost:[/bold] [green]$2,847.23[/green]
+[bold]Daily Average:[/bold] $94.91
+[bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
+"""
+    console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
+
+    table = Table(title="💸 Top AWS Services (Demo)")
+    table.add_column("Service", style="cyan", no_wrap=True)
+    table.add_column("Cost", style="green", justify="right")
+    table.add_column("% of Total", style="yellow", justify="right")
+    table.add_column("Trend", justify="center")
+
+    demo_services = [
+        ("Amazon EC2", "$1,234.56", "43.4%", "[red]↗[/red]"),
+        ("Amazon RDS", "$543.21", "19.1%", "[green]↘[/green]"),
+        ("Amazon S3", "$321.45", "11.3%", "[blue]→[/blue]"),
+        ("AWS Lambda", "$198.76", "7.0%", "[green]↘[/green]"),
+        ("CloudWatch", "$87.65", "3.1%", "[red]↗[/red]"),
+    ]
+    for service, cost, percent, trend in demo_services:
+        table.add_row(service, cost, percent, trend)
+
+    console.print(table)
+    console.print("\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]")
+
+
+def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group_by: str):
     currency = config.output.currency
     decimal_places = config.output.decimal_places
 
     def format_cost(amount):
-        if currency == "USD":
-            return f"${amount:,.{decimal_places}f}"
-        return f"{amount:,.{decimal_places}f} {currency}"
+        # amount might be Decimal
+        try:
+            amt = float(amount)
+        except Exception:
+            amt = 0.0
 
-    total_cost = cost_analysis["total_cost"]
-    daily_avg = cost_analysis["daily_average"]
-    trend = cost_analysis["trend"]
+        if currency.upper() == "USD":
+            return f"${amt:,.{decimal_places}f}"
+        return f"{amt:,.{decimal_places}f} {currency}"
 
-    if trend.trend_direction == "up":
+    total_cost = cost_analysis.get("total_cost", 0)
+    daily_avg = cost_analysis.get("daily_average", 0)
+    trend = cost_analysis.get("trend")
+
+    # trend is a dataclass
+    trend_dir = getattr(trend, "trend_direction", "stable") if trend else "stable"
+    trend_pct = getattr(trend, "change_percentage", 0.0) if trend else 0.0
+
+    if trend_dir == "up":
         trend_icon = "[red]↗[/red]"
-    elif trend.trend_direction == "down":
+    elif trend_dir == "down":
         trend_icon = "[green]↘[/green]"
     else:
         trend_icon = "[blue]→[/blue]"
 
-    trend_text = f"{trend_icon} {trend.change_percentage:+.1f}%"
+    trend_text = f"{trend_icon} {trend_pct:+.1f}%"
+
+    title = "📊 Cost Summary"
+    window = cost_analysis.get("window") or {}
+    if window.get("type") == "calendar_month" and window.get("label"):
+        title = f"📊 Cost Summary ({window['label']})"
 
     summary_text = f"""
-[bold]Period:[/bold] Last {cost_analysis['period_days']} days
+[bold]Period:[/bold] Last {cost_analysis.get('period_days', 30)} days
 [bold]Total Cost:[/bold] [green]{format_cost(total_cost)}[/green]
 [bold]Daily Average:[/bold] {format_cost(daily_avg)}
 [bold]Trend:[/bold] {trend_text} vs previous period
 [bold]Currency:[/bold] {currency}
 """
+    console.print(Panel(summary_text, title=title, border_style="blue"))
 
-    console.print(Panel(summary_text, title="📊 Cost Summary", border_style="blue"))
-
-    service_breakdown = cost_analysis["service_breakdown"]
+    service_breakdown = cost_analysis.get("service_breakdown") or []
 
     if service_breakdown:
         table = Table(title="💸 Top Costs by Service")
@@ -561,77 +587,85 @@ def _display_cost_overview_real(
         table.add_column("Trend", justify="center")
 
         for service in service_breakdown[:10]:
-            service_trend = service.trend
-            if service_trend.trend_direction == "up":
-                service_trend_icon = "[red]↗[/red]"
-            elif service_trend.trend_direction == "down":
-                service_trend_icon = "[green]↘[/green]"
+            st = getattr(service, "trend", None)
+            st_dir = getattr(st, "trend_direction", "stable") if st else "stable"
+
+            if st_dir == "up":
+                st_icon = "[red]↗[/red]"
+            elif st_dir == "down":
+                st_icon = "[green]↘[/green]"
             else:
-                service_trend_icon = "[blue]→[/blue]"
+                st_icon = "[blue]→[/blue]"
 
             table.add_row(
                 service.service_name,
                 format_cost(service.total_cost),
                 f"{service.percentage_of_total:.1f}%",
                 format_cost(service.daily_average),
-                service_trend_icon,
+                st_icon,
             )
 
         console.print(table)
-
-        if config.output.verbose:
-            _show_optimization_opportunities(service_breakdown, format_cost)
     else:
-        console.print(
-            "[yellow]No cost data available for the specified period[/yellow]"
+        console.print("[yellow]No cost data available for the specified period[/yellow]")
+
+
+def _display_month_compare_table(config: FinOpsConfig, analysis: dict):
+    """
+    Pretty compare output for table mode.
+    Uses analysis['comparison'] built in core.cost_explorer.
+    """
+    currency = config.output.currency
+    decimal_places = config.output.decimal_places
+
+    def money(x):
+        try:
+            amt = float(x)
+        except Exception:
+            amt = 0.0
+        if currency.upper() == "USD":
+            return f"${amt:,.{decimal_places}f}"
+        return f"{amt:,.{decimal_places}f} {currency}"
+
+    comp = analysis.get("comparison") or {}
+    cur = comp.get("current") or {}
+    base = comp.get("baseline") or {}
+
+    total_delta = comp.get("total_delta", 0)
+    total_delta_pct = comp.get("total_delta_percentage", 0.0)
+
+    delta_icon = "[green]↘[/green]" if float(total_delta) < 0 else "[red]↗[/red]" if float(total_delta) > 0 else "[blue]→[/blue]"
+
+    header = f"""
+[bold]Current:[/bold] {cur.get('label', 'current')}
+[bold]Baseline:[/bold] {base.get('label', 'baseline')}
+
+[bold]Total Delta:[/bold] {delta_icon} {money(total_delta)} ({total_delta_pct:+.1f}%)
+"""
+    console.print(Panel(header, title="📈 Month Comparison", border_style="magenta"))
+
+    deltas = comp.get("service_deltas") or []
+    if not deltas:
+        console.print("[yellow]No service deltas returned.[/yellow]")
+        return
+
+    table = Table(title="Δ by Service (Top movers)")
+    table.add_column("Service", style="cyan", no_wrap=True)
+    table.add_column("Current", style="green", justify="right")
+    table.add_column("Baseline", style="green", justify="right")
+    table.add_column("Δ", style="yellow", justify="right")
+    table.add_column("Δ %", style="yellow", justify="right")
+
+    for row in deltas[:15]:
+        table.add_row(
+            row.get("service_name", "Unknown"),
+            money(row.get("current_cost", 0)),
+            money(row.get("baseline_cost", 0)),
+            money(row.get("delta", 0)),
+            f"{row.get('delta_percentage', 0.0):+.1f}%",
         )
 
-
-def _show_optimization_opportunities(service_breakdown: list, format_cost):
-    """Show potential cost optimization opportunities."""
-    high_cost_services = [s for s in service_breakdown if s.total_cost > 100]
-    trending_up_services = [
-        s for s in service_breakdown if s.trend.trend_direction == "up"
-    ]
-
-    opportunities = []
-
-    ec2_services = [s for s in service_breakdown if "EC2" in s.service_name.upper()]
-    if ec2_services:
-        total_ec2_cost = sum(s.total_cost for s in ec2_services)
-        if total_ec2_cost > 50:
-            opportunities.append(
-                f"• [yellow]EC2 Rightsizing:[/yellow] {format_cost(total_ec2_cost)} in EC2 costs - consider rightsizing analysis"
-            )
-
-    rds_services = [s for s in service_breakdown if "RDS" in s.service_name.upper()]
-    if rds_services:
-        total_rds_cost = sum(s.total_cost for s in rds_services)
-        if total_rds_cost > 30:
-            opportunities.append(
-                f"• [yellow]RDS Optimization:[/yellow] {format_cost(total_rds_cost)} in RDS costs - review instance types and storage"
-            )
-
-    if trending_up_services:
-        trending_cost = sum(s.total_cost for s in trending_up_services[:3])
-        opportunities.append(
-            f"• [yellow]Cost Trend Alert:[/yellow] {len(trending_up_services)} services trending up ({format_cost(trending_cost)})"
-        )
-
-    if any("EC2" in s.service_name.upper() for s in high_cost_services):
-        opportunities.append(
-            "• [yellow]Reserved Instances:[/yellow] Consider RIs for consistent EC2 workloads"
-        )
-
-    if opportunities:
-        opportunities_text = "\n".join(opportunities)
-        console.print(
-            Panel(
-                f"[bold]💡 Optimization Opportunities:[/bold]\n\n{opportunities_text}",
-                title="🎯 Recommendations",
-                border_style="yellow",
-            )
-        )
+    console.print(table)
 
 
 @cli.group()
@@ -643,16 +677,13 @@ def cache():
 @cache.command("stats")
 @click.pass_context
 def cache_stats(ctx):
-    """Show cache statistics and performance metrics."""
     cache_manager = ctx.obj.cache_manager
-
     if not cache_manager:
         console.print("[yellow]Cache is disabled for this session[/yellow]")
         return
 
     try:
         stats = cache_manager.get_stats()
-
         table = Table(title="💾 Cache Statistics")
         table.add_column("Metric", style="cyan")
         table.add_column("Value", style="green")
@@ -666,25 +697,6 @@ def cache_stats(ctx):
         table.add_row("Cache Misses", str(stats["cache_misses"]))
 
         console.print(table)
-
-        if stats["hit_rate_percent"] > 50:
-            console.print(
-                "[green]✅ Good cache performance! Your repeated queries are much faster.[/green]"
-            )
-        elif stats["hit_rate_percent"] > 20:
-            console.print(
-                "[yellow]⚠️  Moderate cache performance. Consider using similar query parameters.[/yellow]"
-            )
-        else:
-            console.print(
-                "[blue]ℹ️  Cache is building up. Performance will improve with more usage.[/blue]"
-            )
-
-        if stats["estimated_cost_savings"] > 0.50:
-            console.print(
-                f'[green]💰 You\'ve saved approximately ${stats["estimated_cost_savings"]:.2f} in API costs![/green]'
-            )
-
     except Exception as e:
         handle_error(e, ctx.obj.verbose)
 
@@ -693,9 +705,7 @@ def cache_stats(ctx):
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
 @click.pass_context
 def cache_clear(ctx, confirm):
-    """Clear all cached data."""
     cache_manager = ctx.obj.cache_manager
-
     if not cache_manager:
         console.print("[yellow]Cache is disabled for this session[/yellow]")
         return
@@ -708,193 +718,8 @@ def cache_clear(ctx, confirm):
 
         cache_manager.invalidate()
         console.print("[green]✅ Cache cleared successfully[/green]")
-
     except Exception as e:
         handle_error(e, ctx.obj.verbose)
-
-
-@cli.group()
-def tags():
-    """🏷️  Tag compliance and governance commands."""
-    pass
-
-
-@tags.command("compliance")
-@click.option("--service", help="Filter by AWS service (e.g., ec2, rds, s3)")
-@click.option("--fix", is_flag=True, help="Interactively fix tag compliance issues")
-@click.pass_context
-def tag_compliance(ctx, service, fix):
-    """Check tag compliance across resources."""
-    config = ctx.obj.config
-
-    try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            _ = progress.add_task("Scanning resources...", total=None)
-            _display_tag_compliance_mock(config, service, fix)
-
-    except Exception as e:
-        handle_error(e, config.output.verbose)
-        sys.exit(1)
-
-
-def _display_tag_compliance_mock(config: FinOpsConfig, service_filter: str, fix: bool):
-    """Display mock tag compliance report."""
-    summary_text = f"""
-[bold]Resources Scanned:[/bold] 156
-[bold]Compliant:[/bold] [green]89 (57%)[/green]
-[bold]Non-Compliant:[/bold] [red]67 (43%)[/red]
-[bold]Required Tags:[/bold] {', '.join(config.tagging.required_tags)}
-"""
-
-    console.print(
-        Panel(summary_text, title="🏷️  Tag Compliance Report", border_style="blue")
-    )
-
-    table = Table(title="❌ Non-Compliant Resources")
-    table.add_column("Resource", style="cyan")
-    table.add_column("Type", style="yellow")
-    table.add_column("Missing Tags", style="red")
-    table.add_column("Cost Impact", style="green", justify="right")
-
-    resources = [
-        ("i-1234567890abcdef0", "EC2 Instance", "Environment, Owner", "$123.45"),
-        ("vol-abcdef1234567890", "EBS Volume", "Project", "$45.67"),
-        ("rds-production-db", "RDS Instance", "CostCenter", "$234.56"),
-    ]
-
-    for resource, resource_type, missing, cost in resources:
-        table.add_row(resource, resource_type, missing, cost)
-
-    console.print(table)
-
-    if fix:
-        console.print("\n[bold yellow]Interactive tag fixing mode:[/yellow]")
-        if Confirm.ask("Would you like to fix tag compliance issues?"):
-            console.print("[green]Tag fixing functionality coming soon![/green]")
-
-
-@cli.group()
-def optimize():
-    """🚀 Cost optimization commands."""
-    pass
-
-
-@optimize.command("rightsizing")
-@click.option(
-    "--service",
-    type=click.Choice(["ec2", "rds", "all"], case_sensitive=False),
-    default="ec2",
-    help="Service to analyze for rightsizing",
-)
-@click.option(
-    "--savings-threshold",
-    type=float,
-    default=10.0,
-    help="Minimum monthly savings threshold (default: $10)",
-    callback=lambda ctx, param, value: (
-        validate_threshold(value) if value is not None else 10.0
-    ),
-)
-@click.pass_context
-def rightsizing_recommendations(ctx, service, savings_threshold):
-    """Get rightsizing recommendations for underutilized resources."""
-    config = ctx.obj.config
-
-    try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            _ = progress.add_task("Analyzing resource utilization...", total=None)
-            _display_rightsizing_mock(config, service, savings_threshold)
-
-    except ValidationError as e:
-        handle_error(e, config.output.verbose)
-        sys.exit(1)
-    except Exception as e:
-        handle_error(e, config.output.verbose)
-        sys.exit(1)
-
-
-def _display_rightsizing_mock(config: FinOpsConfig, service: str, threshold: float):
-    """Display mock rightsizing recommendations."""
-    summary_text = f"""
-[bold]Service:[/bold] {service.upper()}
-[bold]Resources Analyzed:[/bold] 23
-[bold]Recommendations:[/bold] 8
-[bold]Potential Monthly Savings:[/bold] [green]${threshold * 45.68:.2f}[/green]
-"""
-
-    console.print(
-        Panel(summary_text, title="🚀 Rightsizing Analysis", border_style="green")
-    )
-
-    table = Table(title="💡 Rightsizing Recommendations")
-    table.add_column("Resource", style="cyan")
-    table.add_column("Current", style="yellow")
-    table.add_column("Recommended", style="green")
-    table.add_column("Monthly Savings", style="green", justify="right")
-    table.add_column("Confidence", justify="center")
-
-    recommendations = [
-        (
-            "i-1234567890abcdef0",
-            "m5.large",
-            "m5.medium",
-            f"${threshold * 6.73:.2f}",
-            "[green]High[/green]",
-        ),
-        (
-            "i-abcdef1234567890",
-            "c5.xlarge",
-            "c5.large",
-            f"${threshold * 12.35:.2f}",
-            "[yellow]Medium[/yellow]",
-        ),
-        (
-            "i-9876543210fedcba",
-            "r5.2xlarge",
-            "r5.xlarge",
-            f"${threshold * 23.46:.2f}",
-            "[green]High[/green]",
-        ),
-    ]
-
-    for resource, current, recommended, savings, confidence in recommendations:
-        table.add_row(resource, current, recommended, savings, confidence)
-
-    console.print(table)
-
-
-@cli.command("setup")
-@click.option("--interactive", "-i", is_flag=True, help="Run interactive setup wizard")
-def setup_config(interactive):
-    """🔧 Set up FinOps Lite configuration."""
-    try:
-        if interactive:
-            console.print("[bold blue]🔧 FinOps Lite Setup Wizard[/bold blue]")
-            console.print(
-                "This will help you configure FinOps Lite for your AWS environment.\n"
-            )
-            console.print("[green]Interactive setup coming soon![/green]")
-            console.print(
-                "For now, copy the template from config/templates/finops.yaml"
-            )
-        else:
-            console.print(
-                "Configuration template available at: config/templates/finops.yaml"
-            )
-            console.print("Copy it to one of these locations:")
-            console.print("  • ./finops.yaml")
-            console.print("  • ~/.config/finops/config.yaml")
-            console.print("  • ~/.finops.yaml")
-    except Exception as e:
-        handle_error(e, verbose=False)
 
 
 @cli.command("version")
@@ -906,17 +731,13 @@ def version():
         version_text = f"""
 [bold]FinOps Lite[/bold] v{__version__}
 [dim]Professional AWS cost management CLI[/dim]
-
-Built with ❤️  for cloud cost optimization
 """
-
         console.print(Panel(version_text, title="📦 Version Info", border_style="blue"))
     except Exception as e:
         handle_error(e, verbose=False)
 
 
 def main():
-    """Main entry point for the CLI."""
     try:
         cli()
     except KeyboardInterrupt:
