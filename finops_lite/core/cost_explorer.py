@@ -129,7 +129,9 @@ class CostExplorerService:
         start_str = start_date.strftime("%Y-%m-%d")
         end_str = end_date.strftime("%Y-%m-%d")
 
-        logger.info(f"Fetching cost data from {start_str} to {end_str} (granularity={granularity})")
+        logger.info(
+            f"Fetching cost data from {start_str} to {end_str} (granularity={granularity})"
+        )
 
         group_by_params = [{"Type": "DIMENSION", "Key": dim} for dim in group_by]
 
@@ -140,7 +142,9 @@ class CostExplorerService:
                 Metrics=metrics,
                 GroupBy=group_by_params,
             )
-            logger.debug(f"Retrieved {len(response.get('ResultsByTime', []))} time periods")
+            logger.debug(
+                f"Retrieved {len(response.get('ResultsByTime', []))} time periods"
+            )
             return response
         except Exception as e:
             logger.error(f"Error fetching cost data: {e}")
@@ -222,12 +226,19 @@ class CostExplorerService:
             days=days,
             window_start=start_dt,
             window_end=end_dt,
-            window={"type": "calendar_month", "year": year, "month": month, "label": f"{year:04d}-{month:02d}"},
+            window={
+                "type": "calendar_month",
+                "year": year,
+                "month": month,
+                "label": f"{year:04d}-{month:02d}",
+            },
             report_type="cost_overview_month",
         )
         return analysis
 
-    def compare_months(self, year_a: int, month_a: int, year_b: int, month_b: int) -> Dict[str, Any]:
+    def compare_months(
+        self, year_a: int, month_a: int, year_b: int, month_b: int
+    ) -> Dict[str, Any]:
         """
         Compare month A vs month B (A = current, B = baseline).
         Returns an overview-shaped dict plus a 'comparison' section.
@@ -243,10 +254,18 @@ class CostExplorerService:
 
         rows = []
         for name in all_names:
-            a_cost = a_services.get(name).total_cost if name in a_services else Decimal("0")
-            b_cost = b_services.get(name).total_cost if name in b_services else Decimal("0")
+            a_cost = (
+                a_services.get(name).total_cost if name in a_services else Decimal("0")
+            )
+            b_cost = (
+                b_services.get(name).total_cost if name in b_services else Decimal("0")
+            )
             delta = a_cost - b_cost
-            pct = float((delta / b_cost) * 100) if b_cost > 0 else (100.0 if a_cost > 0 else 0.0)
+            pct = (
+                float((delta / b_cost) * 100)
+                if b_cost > 0
+                else (100.0 if a_cost > 0 else 0.0)
+            )
 
             rows.append(
                 {
@@ -264,13 +283,23 @@ class CostExplorerService:
             **a,
             "report_type": "cost_compare_months",
             "comparison": {
-                "current": {"year": year_a, "month": month_a, "label": f"{year_a:04d}-{month_a:02d}"},
-                "baseline": {"year": year_b, "month": month_b, "label": f"{year_b:04d}-{month_b:02d}"},
+                "current": {
+                    "year": year_a,
+                    "month": month_a,
+                    "label": f"{year_a:04d}-{month_a:02d}",
+                },
+                "baseline": {
+                    "year": year_b,
+                    "month": month_b,
+                    "label": f"{year_b:04d}-{month_b:02d}",
+                },
                 "service_deltas": rows[:50],  # keep it bounded
                 "total_delta": a["total_cost"] - b["total_cost"],
-                "total_delta_percentage": float(((a["total_cost"] - b["total_cost"]) / b["total_cost"]) * 100)
-                if b["total_cost"] > 0
-                else (100.0 if a["total_cost"] > 0 else 0.0),
+                "total_delta_percentage": (
+                    float(((a["total_cost"] - b["total_cost"]) / b["total_cost"]) * 100)
+                    if b["total_cost"] > 0
+                    else (100.0 if a["total_cost"] > 0 else 0.0)
+                ),
             },
         }
         return result
@@ -292,11 +321,15 @@ class CostExplorerService:
         previous_total = self._calculate_total_cost(previous_data)
 
         trend = self._calculate_trend(current_total, previous_total)
-        service_breakdown = self._get_service_breakdown(current_data, previous_data, days=days)
+        service_breakdown = self._get_service_breakdown(
+            current_data, previous_data, days=days
+        )
 
         daily_average = (current_total / days) if days > 0 else Decimal("0")
 
-        top_services = sorted(service_breakdown, key=lambda x: x.total_cost, reverse=True)[:10]
+        top_services = sorted(
+            service_breakdown, key=lambda x: x.total_cost, reverse=True
+        )[:10]
 
         return {
             "report_type": report_type,
@@ -357,7 +390,9 @@ class CostExplorerService:
                 metrics = group.get("Metrics", {})
                 blended_cost = metrics.get("BlendedCost", {})
                 amount = Decimal(blended_cost.get("Amount", "0"))
-                current_services[service_name] = current_services.get(service_name, Decimal("0")) + amount
+                current_services[service_name] = (
+                    current_services.get(service_name, Decimal("0")) + amount
+                )
 
         # Aggregate costs by service for previous period
         previous_services: Dict[str, Decimal] = {}
@@ -367,15 +402,23 @@ class CostExplorerService:
                 metrics = group.get("Metrics", {})
                 blended_cost = metrics.get("BlendedCost", {})
                 amount = Decimal(blended_cost.get("Amount", "0"))
-                previous_services[service_name] = previous_services.get(service_name, Decimal("0")) + amount
+                previous_services[service_name] = (
+                    previous_services.get(service_name, Decimal("0")) + amount
+                )
 
-        total_current = sum(current_services.values()) if current_services else Decimal("0")
+        total_current = (
+            sum(current_services.values()) if current_services else Decimal("0")
+        )
 
         breakdown: List[ServiceCostBreakdown] = []
         for service_name, current_cost in current_services.items():
             previous_cost = previous_services.get(service_name, Decimal("0"))
 
-            percentage = float((current_cost / total_current) * 100) if total_current > 0 else 0.0
+            percentage = (
+                float((current_cost / total_current) * 100)
+                if total_current > 0
+                else 0.0
+            )
             daily_average = (current_cost / days) if days > 0 else Decimal("0")
 
             service_trend = self._calculate_trend(current_cost, previous_cost)
@@ -393,4 +436,3 @@ class CostExplorerService:
 
         breakdown.sort(key=lambda x: x.total_cost, reverse=True)
         return breakdown
-

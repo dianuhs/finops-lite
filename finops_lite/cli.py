@@ -61,22 +61,53 @@ class FinOpsContext:
 
 
 @click.group()
-@click.option("--config", "-c", type=click.Path(exists=True, path_type=Path), help="Path to configuration file")
-@click.option("--profile", "-p", help="AWS profile to use", callback=lambda ctx, param, value: validate_aws_profile(value) if value else None)
-@click.option("--region", "-r", help="AWS region to use", callback=lambda ctx, param, value: validate_aws_region(value) if value else None)
+@click.option(
+    "--config",
+    "-c",
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to configuration file",
+)
+@click.option(
+    "--profile",
+    "-p",
+    help="AWS profile to use",
+    callback=lambda ctx, param, value: validate_aws_profile(value) if value else None,
+)
+@click.option(
+    "--region",
+    "-r",
+    help="AWS region to use",
+    callback=lambda ctx, param, value: validate_aws_region(value) if value else None,
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress all output except errors")
-@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be done without making changes"
+)
 @click.option(
     "--output-format",
-    type=click.Choice(["table", "json", "csv", "yaml", "executive"], case_sensitive=False),
+    type=click.Choice(
+        ["table", "json", "csv", "yaml", "executive"], case_sensitive=False
+    ),
     help="Output format",
 )
 @click.option("--no-color", is_flag=True, help="Disable colored output")
 @click.option("--no-cache", is_flag=True, help="Disable caching for this operation")
 @click.option("--performance", is_flag=True, help="Show detailed performance metrics")
 @click.pass_context
-def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no_color, no_cache, performance):
+def cli(
+    ctx,
+    config,
+    profile,
+    region,
+    verbose,
+    quiet,
+    dry_run,
+    output_format,
+    no_color,
+    no_cache,
+    performance,
+):
     """
     🔥 FinOps Lite - AWS Cost Management CLI
 
@@ -104,7 +135,9 @@ def cli(ctx, config, profile, region, verbose, quiet, dry_run, output_format, no
         if quiet:
             app_config.output.quiet = True
 
-        logger = setup_logger(verbose=app_config.output.verbose, quiet=app_config.output.quiet)
+        logger = setup_logger(
+            verbose=app_config.output.verbose, quiet=app_config.output.quiet
+        )
 
         if not app_config.output.color:
             console._color_system = None
@@ -129,11 +162,15 @@ cli.add_command(signals)
 
 @aws_error_mapper
 @retry_with_backoff(max_retries=2, base_delay=1.0, exceptions=(NetworkTimeoutError,))
-def _test_aws_connectivity(config: FinOpsConfig, logger, cache_manager: Optional[CacheManager] = None):
+def _test_aws_connectivity(
+    config: FinOpsConfig, logger, cache_manager: Optional[CacheManager] = None
+):
     cache_key_params = {"profile": config.aws.profile, "region": config.aws.region}
 
     if cache_manager:
-        cached_result = cache_manager.get("aws_connectivity_test", "account_info", **cache_key_params)
+        cached_result = cache_manager.get(
+            "aws_connectivity_test", "account_info", **cache_key_params
+        )
         if cached_result:
             return cached_result
 
@@ -148,7 +185,10 @@ def _test_aws_connectivity(config: FinOpsConfig, logger, cache_manager: Optional
             start_date = end_date - timedelta(days=7)
 
             ce.get_cost_and_usage(
-                TimePeriod={"Start": start_date.strftime("%Y-%m-%d"), "End": end_date.strftime("%Y-%m-%d")},
+                TimePeriod={
+                    "Start": start_date.strftime("%Y-%m-%d"),
+                    "End": end_date.strftime("%Y-%m-%d"),
+                },
                 Granularity="MONTHLY",
                 Metrics=["BlendedCost"],
             )
@@ -170,7 +210,9 @@ def _test_aws_connectivity(config: FinOpsConfig, logger, cache_manager: Optional
         }
 
         if cache_manager:
-            cache_manager.set("aws_connectivity_test", result, "account_info", **cache_key_params)
+            cache_manager.set(
+                "aws_connectivity_test", result, "account_info", **cache_key_params
+            )
 
     if config.output.verbose:
         table = Table(title="AWS Connection Info")
@@ -186,7 +228,10 @@ def _test_aws_connectivity(config: FinOpsConfig, logger, cache_manager: Optional
             "not_enabled": "[red]❌ Not enabled[/red]",
             "permission_issue": "[yellow]⚠️  Permission issue[/yellow]",
         }
-        table.add_row("Cost Explorer", status_display.get(result["cost_explorer_status"], "Unknown"))
+        table.add_row(
+            "Cost Explorer",
+            status_display.get(result["cost_explorer_status"], "Unknown"),
+        )
         console.print(table)
 
     return result
@@ -218,10 +263,35 @@ def cost(ctx):
 
 
 @cost.command("overview")
-@click.option("--days", "-d", default=30, type=int, help="Number of days to analyze (default: 30)", callback=lambda ctx, param, value: validate_days(value) if value else 30)
-@click.option("--group-by", type=click.Choice(["SERVICE", "ACCOUNT", "REGION", "INSTANCE_TYPE"], case_sensitive=False), default="SERVICE", help="Group costs by dimension")
-@click.option("--format", "output_format", type=click.Choice(["table", "json", "csv", "yaml", "executive"], case_sensitive=False), help="Output format (overrides global setting)")
-@click.option("--export", "export_file", help="Export report to file (e.g., report.json, costs.csv)")
+@click.option(
+    "--days",
+    "-d",
+    default=30,
+    type=int,
+    help="Number of days to analyze (default: 30)",
+    callback=lambda ctx, param, value: validate_days(value) if value else 30,
+)
+@click.option(
+    "--group-by",
+    type=click.Choice(
+        ["SERVICE", "ACCOUNT", "REGION", "INSTANCE_TYPE"], case_sensitive=False
+    ),
+    default="SERVICE",
+    help="Group costs by dimension",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(
+        ["table", "json", "csv", "yaml", "executive"], case_sensitive=False
+    ),
+    help="Output format (overrides global setting)",
+)
+@click.option(
+    "--export",
+    "export_file",
+    help="Export report to file (e.g., report.json, costs.csv)",
+)
 @click.option("--force-refresh", is_flag=True, help="Force refresh of cached data")
 @click.pass_context
 def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh):
@@ -240,30 +310,59 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
             config.output.format = output_format
 
         if dry_run:
-    fmt = (config.output.format or "table").lower()
+            fmt = (config.output.format or "table").lower()
 
-    if fmt != "table":
-        console.print(
-            f"[yellow]Generating {fmt.upper()} format (demo data)...[/yellow]"
-        )
+            # In dry-run, we still honor non-table formats for tests + UX.
+            if fmt != "table":
+                console.print(
+                    f"[yellow]Generating {fmt.upper()} format (demo data)...[/yellow]"
+                )
+                formatter = ReportFormatter(config, console)
 
-        formatter = ReportFormatter(config, console)
-        demo_data = {
-            "period_days": days,
-            "total_cost": 2847.23,
-            "daily_average": 94.91,
-            "currency": config.output.currency,
-        }
+                demo_data = {
+                    "report_type": "cost_overview",
+                    "period_days": days,
+                    "total_cost": 2847.23,
+                    "daily_average": 94.91,
+                    "currency": config.output.currency,
+                    "trend": {"direction": "up", "percentage": 12.3},
+                    "generated_at": datetime.now(),
+                    "services": [
+                        {
+                            "service_name": "Amazon EC2",
+                            "total_cost": 1234.56,
+                            "percentage_of_total": 43.4,
+                            "daily_average": 41.15,
+                            "trend": {"direction": "up", "percentage": 5.0},
+                            "top_usage_types": [],
+                        },
+                        {
+                            "service_name": "Amazon RDS",
+                            "total_cost": 543.21,
+                            "percentage_of_total": 19.1,
+                            "daily_average": 18.11,
+                            "trend": {"direction": "down", "percentage": -2.0},
+                            "top_usage_types": [],
+                        },
+                        {
+                            "service_name": "Amazon S3",
+                            "total_cost": 321.45,
+                            "percentage_of_total": 11.3,
+                            "daily_average": 10.72,
+                            "trend": {"direction": "flat", "percentage": 0.0},
+                            "top_usage_types": [],
+                        },
+                    ],
+                }
 
-        content = formatter.format_cost_overview(demo_data, fmt)
-        if content:
-            console.print(content)
-        return
+                content = formatter.format_cost_overview(demo_data, fmt)
+                if content:
+                    console.print(content)
+                return
 
-    console.print("[yellow]Dry-run mode: showing demo table only[/yellow]")
-    _display_cost_overview_demo(days)
-    return
-
+            console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
+            _display_cost_overview_demo(days)
+            return
 
         _ = _test_aws_connectivity(config, logger, cache_manager)
 
@@ -277,12 +376,18 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
 
         cost_analysis = None
         if cache_manager and not force_refresh:
-            cost_analysis = cache_manager.get("cost_overview", "cost_data", **cache_key_params)
+            cost_analysis = cache_manager.get(
+                "cost_overview", "cost_data", **cache_key_params
+            )
             if cost_analysis and performance_tracker:
                 performance_tracker.record_cache_hit()
 
         if not cost_analysis:
-            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
                 task = progress.add_task("Fetching cost data...", total=None)
 
                 from .core.cost_explorer import CostExplorerService
@@ -296,7 +401,9 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                     performance_tracker.record_api_call()
 
                 if cache_manager:
-                    cache_manager.set("cost_overview", cost_analysis, "cost_data", **cache_key_params)
+                    cache_manager.set(
+                        "cost_overview", cost_analysis, "cost_data", **cache_key_params
+                    )
 
                 progress.update(task, description="Formatting results...")
 
@@ -304,7 +411,9 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
 
         if export_file:
             formatter = ReportFormatter(config, console)
-            content = formatter.format_cost_overview(cost_analysis, config.output.format)
+            content = formatter.format_cost_overview(
+                cost_analysis, config.output.format
+            )
             if content:
                 formatter.save_report(content, export_file, config.output.format)
                 console.print(f"[green]Report exported to: {export_file}[/green]")
@@ -334,9 +443,25 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
 
 
 @cost.command("monthly")
-@click.option("--month", "month_str", required=True, help="Calendar month in YYYY-MM (example: 2026-01)")
-@click.option("--format", "output_format", type=click.Choice(["table", "json", "csv", "yaml", "executive"], case_sensitive=False), help="Output format (overrides global setting)")
-@click.option("--export", "export_file", help="Export report to file (e.g., report.json, costs.csv)")
+@click.option(
+    "--month",
+    "month_str",
+    required=True,
+    help="Calendar month in YYYY-MM (example: 2026-01)",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(
+        ["table", "json", "csv", "yaml", "executive"], case_sensitive=False
+    ),
+    help="Output format (overrides global setting)",
+)
+@click.option(
+    "--export",
+    "export_file",
+    help="Export report to file (e.g., report.json, costs.csv)",
+)
 @click.option("--force-refresh", is_flag=True, help="Force refresh of cached data")
 @click.pass_context
 def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
@@ -356,31 +481,10 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
 
         year, month = _parse_yyyymm(month_str)
 
-         if dry_run:
-            fmt = (config.output.format or "table").lower()
-
-            if fmt != "table":
-                console.print(
-                    f"[yellow]Generating {fmt.upper()} format (demo data)...[/yellow]"
-                )
-
-                formatter = ReportFormatter(config, console)
-                demo_data = {
-                    "period_days": days,
-                    "total_cost": 2847.23,
-                    "daily_average": 94.91,
-                    "currency": config.output.currency,
-                }
-
-                content = formatter.format_cost_overview(demo_data, fmt)
-                if content:
-                    console.print(content)
-                return
-
-            console.print("[yellow]Dry-run mode: showing demo table only[/yellow]")
-            _display_cost_overview_demo(days)
+        if dry_run:
+            console.print("[yellow]Dry-run mode: showing demo data[/yellow]")
+            _display_cost_overview_demo(30)
             return
-
 
         _ = _test_aws_connectivity(config, logger, cache_manager)
 
@@ -393,26 +497,36 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
 
         analysis = None
         if cache_manager and not force_refresh:
-            analysis = cache_manager.get("cost_monthly", "cost_data", **cache_key_params)
+            analysis = cache_manager.get(
+                "cost_monthly", "cost_data", **cache_key_params
+            )
             if analysis and performance_tracker:
                 performance_tracker.record_cache_hit()
 
         if not analysis:
-            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
                 task = progress.add_task("Fetching monthly cost data...", total=None)
 
                 from .core.cost_explorer import CostExplorerService
 
                 svc = CostExplorerService(config)
 
-                progress.update(task, description=f"Analyzing {year:04d}-{month:02d}...")
+                progress.update(
+                    task, description=f"Analyzing {year:04d}-{month:02d}..."
+                )
                 analysis = svc.get_month_cost_overview(year, month)
 
                 if performance_tracker:
                     performance_tracker.record_api_call()
 
                 if cache_manager:
-                    cache_manager.set("cost_monthly", analysis, "cost_data", **cache_key_params)
+                    cache_manager.set(
+                        "cost_monthly", analysis, "cost_data", **cache_key_params
+                    )
 
                 progress.update(task, description="Formatting results...")
 
@@ -437,13 +551,36 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
 
 
 @cost.command("compare")
-@click.option("--current", "current_month", required=True, help="Current month in YYYY-MM (example: 2026-01)")
-@click.option("--baseline", "baseline_month", required=True, help="Baseline month in YYYY-MM (example: 2025-12)")
-@click.option("--format", "output_format", type=click.Choice(["table", "json", "csv", "yaml", "executive"], case_sensitive=False), help="Output format (overrides global setting)")
-@click.option("--export", "export_file", help="Export report to file (e.g., report.json, costs.csv)")
+@click.option(
+    "--current",
+    "current_month",
+    required=True,
+    help="Current month in YYYY-MM (example: 2026-01)",
+)
+@click.option(
+    "--baseline",
+    "baseline_month",
+    required=True,
+    help="Baseline month in YYYY-MM (example: 2025-12)",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(
+        ["table", "json", "csv", "yaml", "executive"], case_sensitive=False
+    ),
+    help="Output format (overrides global setting)",
+)
+@click.option(
+    "--export",
+    "export_file",
+    help="Export report to file (e.g., report.json, costs.csv)",
+)
 @click.option("--force-refresh", is_flag=True, help="Force refresh of cached data")
 @click.pass_context
-def cost_compare(ctx, current_month, baseline_month, output_format, export_file, force_refresh):
+def cost_compare(
+    ctx, current_month, baseline_month, output_format, export_file, force_refresh
+):
     """Compare two calendar months (YYYY-MM vs YYYY-MM)."""
     config = ctx.obj.config
     logger = ctx.obj.logger
@@ -478,26 +615,37 @@ def cost_compare(ctx, current_month, baseline_month, output_format, export_file,
 
         analysis = None
         if cache_manager and not force_refresh:
-            analysis = cache_manager.get("cost_compare", "cost_data", **cache_key_params)
+            analysis = cache_manager.get(
+                "cost_compare", "cost_data", **cache_key_params
+            )
             if analysis and performance_tracker:
                 performance_tracker.record_cache_hit()
 
         if not analysis:
-            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
                 task = progress.add_task("Fetching comparison data...", total=None)
 
                 from .core.cost_explorer import CostExplorerService
 
                 svc = CostExplorerService(config)
 
-                progress.update(task, description=f"Comparing {cy:04d}-{cm:02d} vs {by:04d}-{bm:02d}...")
+                progress.update(
+                    task,
+                    description=f"Comparing {cy:04d}-{cm:02d} vs {by:04d}-{bm:02d}...",
+                )
                 analysis = svc.compare_months(cy, cm, by, bm)
 
                 if performance_tracker:
                     performance_tracker.record_api_call()
 
                 if cache_manager:
-                    cache_manager.set("cost_compare", analysis, "cost_data", **cache_key_params)
+                    cache_manager.set(
+                        "cost_compare", analysis, "cost_data", **cache_key_params
+                    )
 
                 progress.update(task, description="Rendering results...")
 
@@ -528,7 +676,9 @@ def cost_compare(ctx, current_month, baseline_month, output_format, export_file,
 
 
 @aws_error_mapper
-@retry_with_backoff(max_retries=3, base_delay=2.0, exceptions=(APIRateLimitError, NetworkTimeoutError))
+@retry_with_backoff(
+    max_retries=3, base_delay=2.0, exceptions=(APIRateLimitError, NetworkTimeoutError)
+)
 def _get_cost_data_with_retry(cost_service, days):
     return cost_service.get_monthly_cost_overview(days)
 
@@ -550,7 +700,9 @@ def _display_cost_overview_demo(days: int):
 [bold]Daily Average:[/bold] $94.91
 [bold]Trend:[/bold] [red]↗ +12.3%[/red] vs previous period
 """
-    console.print(Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue"))
+    console.print(
+        Panel(summary_text, title="📊 Cost Summary (Demo)", border_style="blue")
+    )
 
     table = Table(title="💸 Top AWS Services (Demo)")
     table.add_column("Service", style="cyan", no_wrap=True)
@@ -569,10 +721,14 @@ def _display_cost_overview_demo(days: int):
         table.add_row(service, cost, percent, trend)
 
     console.print(table)
-    console.print("\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]")
+    console.print(
+        "\n[dim]💡 This is demo data. Configure AWS credentials to see real costs.[/dim]"
+    )
 
 
-def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group_by: str):
+def _display_cost_overview_real(
+    config: FinOpsConfig, cost_analysis: dict, group_by: str
+):
     currency = config.output.currency
     decimal_places = config.output.decimal_places
 
@@ -649,7 +805,9 @@ def _display_cost_overview_real(config: FinOpsConfig, cost_analysis: dict, group
 
         console.print(table)
     else:
-        console.print("[yellow]No cost data available for the specified period[/yellow]")
+        console.print(
+            "[yellow]No cost data available for the specified period[/yellow]"
+        )
 
 
 def _display_month_compare_table(config: FinOpsConfig, analysis: dict):
@@ -676,7 +834,11 @@ def _display_month_compare_table(config: FinOpsConfig, analysis: dict):
     total_delta = comp.get("total_delta", 0)
     total_delta_pct = comp.get("total_delta_percentage", 0.0)
 
-    delta_icon = "[green]↘[/green]" if float(total_delta) < 0 else "[red]↗[/red]" if float(total_delta) > 0 else "[blue]→[/blue]"
+    delta_icon = (
+        "[green]↘[/green]"
+        if float(total_delta) < 0
+        else "[red]↗[/red]" if float(total_delta) > 0 else "[blue]→[/blue]"
+    )
 
     header = f"""
 [bold]Current:[/bold] {cur.get('label', 'current')}

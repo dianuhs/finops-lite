@@ -146,7 +146,9 @@ class ReportFormatter:
                 {
                     "service_name": sd.get("service_name", "Unknown"),
                     "total_cost": self._to_float(sd.get("total_cost", 0)),
-                    "percentage_of_total": float(sd.get("percentage_of_total", 0.0) or 0.0),
+                    "percentage_of_total": float(
+                        sd.get("percentage_of_total", 0.0) or 0.0
+                    ),
                     "daily_average": self._to_float(sd.get("daily_average", 0)),
                     "trend": self._normalize_trend(sd.get("trend")),
                     "top_usage_types": sd.get("top_usage_types") or [],
@@ -162,7 +164,9 @@ class ReportFormatter:
 
         total_cost = self._to_float(cost_data.get("total_cost", 0))
         daily_average = self._to_float(cost_data.get("daily_average", 0))
-        currency = cost_data.get("currency") or getattr(self.config.output, "currency", "USD")
+        currency = cost_data.get("currency") or getattr(
+            self.config.output, "currency", "USD"
+        )
         generated_at = cost_data.get("generated_at") or datetime.now()
 
         # Optional window fields (for monthly/compare features)
@@ -269,7 +273,9 @@ class ReportFormatter:
 
         services = report["services"]
         top3 = services[:3]
-        top3_share = sum([s.get("percentage_of_total", 0.0) for s in top3]) if top3 else 0.0
+        top3_share = (
+            sum([s.get("percentage_of_total", 0.0) for s in top3]) if top3 else 0.0
+        )
 
         def money(x: float) -> str:
             if currency.upper() == "USD":
@@ -330,24 +336,40 @@ class ReportFormatter:
 
         # High service concentration
         if top3_share >= 70:
-            recs.append("• Spend is concentrated in a few services. Validate allocation + ownership for the top drivers.")
+            recs.append(
+                "• Spend is concentrated in a few services. Validate allocation + ownership for the top drivers."
+            )
 
         # If EC2 present near top
         if any("EC2" in (s["service_name"] or "").upper() for s in services[:5]):
-            recs.append("• EC2 is a top driver. Run rightsizing + RI/SP fit checks for steady workloads.")
+            recs.append(
+                "• EC2 is a top driver. Run rightsizing + RI/SP fit checks for steady workloads."
+            )
 
         # If data transfer / CloudWatch / NAT might show up
-        if any("CLOUDWATCH" in (s["service_name"] or "").upper() for s in services[:10]):
-            recs.append("• CloudWatch is material. Check log retention, metrics cardinality, and high-volume ingestion.")
-        if any("DATA TRANSFER" in (s["service_name"] or "").upper() for s in services[:10]):
-            recs.append("• Data Transfer is material. Review cross-AZ / cross-region flows and egress patterns.")
+        if any(
+            "CLOUDWATCH" in (s["service_name"] or "").upper() for s in services[:10]
+        ):
+            recs.append(
+                "• CloudWatch is material. Check log retention, metrics cardinality, and high-volume ingestion."
+            )
+        if any(
+            "DATA TRANSFER" in (s["service_name"] or "").upper() for s in services[:10]
+        ):
+            recs.append(
+                "• Data Transfer is material. Review cross-AZ / cross-region flows and egress patterns."
+            )
 
         # Trend is up
         if (trend.get("direction") or "") == "up" and abs(trend_pct) >= 10:
-            recs.append("• Spend is up meaningfully. Confirm if this was planned growth or leakage (orphans, scale drift).")
+            recs.append(
+                "• Spend is up meaningfully. Confirm if this was planned growth or leakage (orphans, scale drift)."
+            )
 
         if not recs:
-            recs.append("• Review top services and validate whether increases are expected. If not, start with utilization + retention.")
+            recs.append(
+                "• Review top services and validate whether increases are expected. If not, start with utilization + retention."
+            )
 
         lines.extend(recs)
 
