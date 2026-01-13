@@ -356,10 +356,31 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
 
         year, month = _parse_yyyymm(month_str)
 
-        if dry_run:
+         if dry_run:
+            fmt = (config.output.format or "table").lower()
+
+            if fmt != "table":
+                console.print(
+                    f"[yellow]Generating {fmt.upper()} format (demo data)...[/yellow]"
+                )
+
+                formatter = ReportFormatter(config, console)
+                demo_data = {
+                    "period_days": days,
+                    "total_cost": 2847.23,
+                    "daily_average": 94.91,
+                    "currency": config.output.currency,
+                }
+
+                content = formatter.format_cost_overview(demo_data, fmt)
+                if content:
+                    console.print(content)
+                return
+
             console.print("[yellow]Dry-run mode: showing demo table only[/yellow]")
-            _display_cost_overview_demo(30)
+            _display_cost_overview_demo(days)
             return
+
 
         _ = _test_aws_connectivity(config, logger, cache_manager)
 
