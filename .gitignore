@@ -148,3 +148,6 @@ config/local/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# local extra repo
+finops-watchdog/
