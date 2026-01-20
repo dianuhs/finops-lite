@@ -1,357 +1,184 @@
 # FinOps Lite
 
-**Professional AWS cost management in your terminal** — Lightning-fast cost visibility, optimization, and governance.
-
 [![Tests](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/dianuhs/finops-lite/actions/workflows/ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![codecov](https://codecov.io/gh/dianuhs/finops-lite/branch/main/graph/badge.svg)](https://codecov.io/gh/dianuhs/finops-lite)
 
-> Transform complex AWS billing into clear, actionable insights — all from your command line.
-
-## Overview
-
-FinOps Lite is a Python-based CLI tool designed to simplify AWS cost management for small teams and enterprises. By providing clear cost insights, tag governance, and optimization recommendations, it empowers FinOps practitioners to reduce cloud waste and improve financial accountability. Built with performance and user experience in mind, it's a practical solution for modern cloud cost challenges.
-
-## Why FinOps Lite?
-
-Cloud cost management is often complex and overwhelming, especially for small teams or organizations new to FinOps. FinOps Lite was born out of a desire to simplify AWS cost visibility and optimization, empowering teams to make data-driven decisions without enterprise-grade complexity. This project reflects my passion for bridging technical and financial domains to drive cloud efficiency.
-
-## What It Looks Like
-
-*Monthly cost totals with automatic fallback* <br>
-<img src="docs/images/demo-cost-overview.png" alt="Cost Overview" width="500">
-
-*Performance metrics and caching details* <br>
-<img src="docs/images/demo-cache-stats.png" alt="Cache Stats" width="300">
-
-
-*Structured output for automation and reporting* <br>
-<img src="docs/images/demo-json-format.png" alt="JSON Format" width="400">
-
-
-## Sample Output
-
-```bash
-$ AWS_PROFILE=finops-lite finops-lite
-💰 AWS Cost Summary
-Month-to-Date Total: $1,247.83
-(Data from Dec 1-15, 2024)
-
-$ AWS_PROFILE=finops-lite finops-lite --last-month
-💰 AWS Cost Summary  
-Last Month Total: $2,156.92
-(Data from Nov 1-30, 2024)
-
-$ AWS_PROFILE=finops-lite finops-lite services --days 30 --top 5
-🔍 Top Services (Last 30 Days)
-1. EC2-Instance: $892.45
-2. Amazon RDS Service: $234.12  
-3. Amazon Simple Storage Service: $89.23
-4. CloudWatch: $31.04
-5. NatGateway: $28.67
-```
-
-## Try It in 30 Seconds
-
-```bash
-# Install and run
-git clone https://github.com/dianuhs/finops-lite.git
-cd finops-lite
-pip install -e .
-finops-lite --dry-run cost overview
-```
-
-## Demo
-
-```bash
-$ finops-lite cost overview
-```
-
-```
-╭────────────────────── Cost Summary ──────────────────────╮
-│                                                          │
-│ Period: Last 30 days                                     │
-│ Total Cost: $2,847.23                                    │
-│ Daily Average: $94.91                                    │
-│ Trend: ↗ +12.3% vs previous period                       │
-│ Currency: USD                                            │
-│                                                          │
-╰──────────────────────────────────────────────────────────╯
-
-          Top AWS Services           
-┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━┓
-┃ Service    ┃      Cost ┃ % of Total ┃ Trend ┃
-┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━┩
-│ Amazon EC2 │ $1,234.56 │      43.4% │   ↗   │
-│ Amazon RDS │   $543.21 │      19.1% │   ↘   │
-│ Amazon S3  │   $321.45 │      11.3% │   →   │
-│ AWS Lambda │   $198.76 │       7.0% │   ↘   │
-│ CloudWatch │    $87.65 │       3.1% │   ↗   │
-└────────────┴───────────┴────────────┴───────┘
-```
-
-```bash
-$ finops-lite cache stats
-```
-
-```
-     Cache Statistics     
-┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
-┃ Metric            ┃ Value ┃
-┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
-│ Cache Entries     │ 12    │
-│ Cache Size        │ 0.3MB │
-│ Hit Rate          │ 67%   │
-│ API Calls Saved   │ 23    │
-│ Est. Cost Savings │ $0.23 │
-│ Cache Hits        │ 23    │
-│ Cache Misses      │ 11    │
-└───────────────────┴───────┘
-Good cache performance! Your repeated queries are much faster.
-```
-
-## What Makes FinOps Lite Special
-
-- **Lightning Fast** — Intelligent caching saves time and money on repeated queries
-- **Beautiful Output** — Rich tables, charts, and progress bars that actually look good
-- **Bulletproof Errors** — Helpful guidance when things go wrong (not cryptic AWS errors)
-- **Cost Aware** — Tracks and minimizes your API costs while maximizing insights
-- **Professional Grade** — Enterprise-ready reliability with comprehensive testing
-
-## Cost & Permissions
-
-> **AWS Cost Explorer API**: ~$0.01 per call. FinOps Lite includes intelligent caching to minimize costs.
-> 
-> **Required IAM Permissions**: Read-only access with `ce:GetCostAndUsage`, `ce:GetRightsizingRecommendation`. See [detailed permissions](#recommended-iam-permissions) below.
-
-## Real-World Use Cases
-
-**Startup Cost Control**
-A small team uses `finops-lite cost overview --days 7` to monitor weekly AWS spending and identifies a 25% cost spike due to untagged EC2 instances running in non-production environments.
-
-**Enterprise Tag Governance** 
-A FinOps analyst runs `finops-lite tags compliance --export compliance-report.csv` to generate executive reports, ensuring 95% tag coverage across resources for accurate cost allocation.
-
-**Developer Cost Awareness**
-A DevOps engineer uses `finops-lite optimize rightsizing --savings-threshold 50` to find underutilized EC2 instances, identifying $800/month in potential savings through rightsizing recommendations.
-
-**Monthly Executive Reporting**
-A cloud architect exports `finops-lite cost overview --format executive --export monthly-summary.json` to create stakeholder-friendly cost summaries with trend analysis and optimization opportunities.
-
-## Key Features
-
-### Cost Analysis
-- **Month-to-date totals** with intelligent fallback to last month
-- **Cost by service** breakdown with trend analysis
-- **Multiple output formats** (table, JSON, CSV, YAML, executive summary)
-- **Smart caching** to avoid duplicate API calls
-
-### Tag Governance
-- **Tag compliance** reporting across all resources
-- **Cost impact** analysis for untagged resources
-- **Bulk tagging** recommendations (coming soon)
-
-### Cost Optimization
-- **EC2 rightsizing** recommendations with confidence scores
-- **Reserved Instance** opportunity analysis
-- **Unused resource** detection (coming soon)
-- **Trend alerts** for cost spikes
-
-### Performance & Caching
-- **Intelligent caching** saves money on API calls
-- **Performance tracking** with detailed metrics
-- **Cache management** commands for full control
-- **Cost savings** reporting (tracks money saved from caching)
-
-## Installation & Setup
-
-### Install from Source
-```bash
-git clone https://github.com/dianuhs/finops-lite.git
-cd finops-lite
-pip install -e .
-```
-
-### AWS Setup
-```bash
-# Create AWS profile (recommended)
-aws configure --profile finops-lite
-
-# Enable Cost Explorer in AWS Console
-# Go to: AWS Cost Management → Cost Explorer → Enable
-
-# Test installation
-finops-lite --help
-```
-
-## Quick Start
-
-```bash
-# Basic cost overview
-finops-lite cost overview
-
-# Check cache performance
-finops-lite cache stats
-
-# Export to JSON
-finops-lite cost overview --format json --export report.json
-
-# Performance tracking
-finops-lite --performance cost overview
-```
-
-## Advanced Usage
-
-### Cost Analysis
-```bash
-# Different time periods
-finops-lite cost overview --days 7
-finops-lite cost overview --days 90
-
-# Force refresh (bypass cache)
-finops-lite cost overview --force-refresh
-
-# Executive summary format
-finops-lite cost overview --format executive
-```
-
-### Cache Management
-```bash
-# Check cache performance
-finops-lite cache stats
-
-# Clear cache
-finops-lite cache clear
-
-# Disable cache for one command
-finops-lite --no-cache cost overview
-```
-
-### Output Formats
-```bash
-# Beautiful terminal tables (default)
-finops-lite cost overview
-
-# Machine-readable formats
-finops-lite cost overview --format json
-finops-lite cost overview --format csv
-finops-lite cost overview --format yaml
-```
-
-## Prerequisites
-
-- **Python 3.9+**
-- **AWS CLI configured** with appropriate credentials
-- **AWS Cost Explorer enabled** (may take 24-48 hours for first-time setup)
-
-### Recommended IAM Permissions
-
-Create a read-only IAM user with these policies:
-- `ReadOnlyAccess` (AWS managed policy)
-- Custom policy for Cost Explorer:
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "ce:GetCostAndUsage",
-                "ce:GetRightsizingRecommendation",
-                "ce:GetReservationCoverage",
-                "ce:GetUsageReport"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-```
-
-## Error Handling
-
-FinOps Lite provides helpful guidance when things go wrong:
-
-```bash
-$ finops-lite cost overview
-╭──────────────────────── AWS Credentials ────────────────────────╮
-│ AWS Credentials Not Found                                       │
-│                                                                 │
-│ Quick Fixes:                                                    │
-│   1. Configure AWS CLI:                                         │
-│      aws configure                                              │
-│                                                                 │
-│   2. Use named profile:                                         │
-│      export AWS_PROFILE=your-profile-name                       │
-│      # or use: finops-lite --profile your-profile-name          │
-│                                                                 │
-│   3. Use environment variables:                                 │
-│      export AWS_ACCESS_KEY_ID=your-key                          │
-│      export AWS_SECRET_ACCESS_KEY=your-secret                   │
-│                                                                 │
-│ Cost Note: Cost Explorer API calls cost ~$0.01 each             │
-╰─────────────────────────────────────────────────────────────────╯
-```
-
-## Roadmap
-
-**Now:**
-- ✅ Cost overview with caching
-- ✅ Multiple output formats
-- ✅ Professional error handling
-
-**Next:**
-- [ ] Real AWS Cost Explorer integration
-- [ ] Tag compliance automation
-- [ ] Enhanced rightsizing analysis
-
-**Later:**
-- [ ] Multi-account support
-- [ ] Budget tracking and forecasting
-- [ ] Real-time cost alerts
-
-See [open issues](https://github.com/dianuhs/finops-lite/issues) for detailed progress.
-
-## Development
-
-```bash
-# Clone repository
-git clone https://github.com/dianuhs/finops-lite.git
-cd finops-lite
-
-# Install development dependencies
-pip install -e .[dev]
-
-# Run tests
-pytest
-
-# Check code quality
-black finops_lite/
-flake8 finops_lite/
-```
-
-## Contributing
-
-Contributions welcome! Please read our [contributing guidelines](CONTRIBUTING.md) and submit PRs.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## Support
-
-- **Bug reports**: [GitHub Issues](https://github.com/dianuhs/finops-lite/issues)
-- **Feature requests**: [GitHub Discussions](https://github.com/dianuhs/finops-lite/discussions)
+A CLI-first cloud cost analysis engine built on AWS Cost Explorer, designed to turn raw spend data into clear, decision-ready signals.
 
 ---
 
-**Built with care for cloud cost optimization**
+## Why FinOps Lite Exists
 
-*FinOps Lite helps teams understand and optimize their AWS spending without the complexity of enterprise tools.*
+Most cloud cost tooling optimizes for visualization. FinOps Lite optimizes for reasoning.
 
+Instead of dashboards that passively refresh, FinOps Lite produces deterministic cost reports that can be inspected, exported, diffed across time, and embedded directly into workflows. It is designed for practitioners who want to understand *why* spend changes, not just *that* it did.
 
+FinOps Lite intentionally focuses on correctness, portability, and signal quality. It is a foundation layer for higher-order FinOps automation rather than an all-in-one platform.
 
+---
 
+## Core Capabilities
 
+### Rolling Cost Overview
+Analyze the last N days of cloud spend and compare it to the previous period.
+
+Includes:
+- total spend
+- daily average
+- period-over-period trend
+- top services by cost and concentration
+
+Command:
+finops cost overview --days 7
+
+[screenshot of rolling cost overview CLI output here]
+
+---
+
+### Calendar Month Reporting
+Analyze a full calendar month using Cost Explorer’s native month boundaries and compare it to the prior month.
+
+Command:
+finops cost monthly --month 2026-01
+
+[screenshot of monthly cost report here]
+
+---
+
+### Month-over-Month Comparison
+Compare two calendar months directly to identify deltas and service-level cost drivers.
+
+Command:
+finops cost compare --current 2026-01 --baseline 2025-12
+
+[screenshot of month comparison output here]
+
+---
+
+## Output Formats
+
+All reports can be rendered in multiple formats depending on the audience or downstream use case:
+
+- table – rich CLI output
+- json – stable, machine-readable schema
+- csv – spreadsheet-friendly
+- yaml – configuration and pipeline friendly
+- executive – narrative summary with recommendations
+
+[screenshot of executive summary output here]  
+[screenshot of JSON report schema here]
+
+---
+
+## Executive Summary Mode
+
+Executive output translates raw cost data into decision-oriented language, including:
+- monthly run-rate estimates
+- spend concentration analysis
+- targeted optimization prompts
+
+This format is designed to be shared directly with leadership or embedded in written reports.
+
+---
+
+## Reporting Examples
+
+[screenshot of CLI table output here]  
+[screenshot of CSV export opened in spreadsheet here]  
+[screenshot of YAML output here]
+
+---
+
+## Report Schema (Stable by Design)
+
+All structured outputs follow a consistent schema:
+- metadata (version, generated_at, report_type)
+- reporting window (rolling or calendar)
+- summary (total_cost, daily_average, trend)
+- services (per-service cost, percentage of total, daily average, trend)
+
+Schema stability is intentional. It allows FinOps Lite to act as a reliable upstream source for automation, analytics pipelines, and future tooling.
+
+---
+
+## Demo & Fixture Mode
+
+FinOps Lite can operate without live AWS spend.
+
+If a Cost Explorer fixture exists in:
+finops_lite/fixtures/
+
+the CLI will automatically use it instead of calling AWS.
+
+This enables:
+- demos without AWS credentials
+- development on zero-spend accounts
+- deterministic testing
+- CI pipelines without Cost Explorer API usage
+
+[screenshot of fixture-based run here]
+
+---
+
+## Installation
+
+Clone the repository and install in editable mode:
+
+pip install -e .
+
+---
+
+## AWS Configuration
+
+FinOps Lite uses standard AWS authentication methods:
+- aws configure
+- named profiles
+- environment variables
+- STS-based credentials
+
+Live data requires permission to access AWS Cost Explorer.
+
+> AWS Cost Explorer API calls cost approximately $0.01 per request.  
+> FinOps Lite includes caching to minimize unnecessary calls.
+
+---
+
+## Error Handling
+
+FinOps Lite provides clear, actionable guidance when things go wrong.
+
+[screenshot of AWS credentials error output here]
+
+---
+
+## Design Principles
+
+FinOps Lite is intentionally narrow and composable.
+
+It emphasizes:
+- correct cost windows
+- transparent aggregation logic
+- repeatable outputs
+- portability across teams and environments
+
+This makes it suitable both as a standalone analysis tool and as a foundation layer for more advanced FinOps systems.
+
+---
+
+## Roadmap
+
+FinOps Lite is the base layer for upcoming tooling, including:
+- Guard Dog – automated cost hygiene and anomaly detection
+- Recovery Economics – cost-to-value analysis and optimization modeling
+- scheduled reporting and alerting
+
+Each builds directly on the report schema produced by FinOps Lite.
+
+---
+
+## License
+
+MIT
