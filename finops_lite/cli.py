@@ -386,7 +386,7 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                     "currency": config.output.currency,
                     "trend": {"direction": "up", "percentage": 12.3},
                     "generated_at": datetime.now(),
-                    "services": [
+                    "service_breakdown": [
                         {
                             "service_name": "Amazon EC2",
                             "total_cost": 1234.56,

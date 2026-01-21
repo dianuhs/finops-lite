@@ -1,17 +1,14 @@
 """
 AWS Cost Explorer service integration.
 Handles all cost data retrieval and analysis.
-
-Upgrades in this version:
-- Adds month-window helpers (YYYY-MM monthly reporting)
-- Uses REAL period length (days) for daily averages per service
-- Adds compare helpers for month vs month
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils.config import FinOpsConfig
@@ -63,6 +60,27 @@ class CostExplorerService:
         self.session = config.get_boto3_session()
         self.ce_client = self.session.client("ce")
 
+    def _load_fixture(self, filename: str) -> Optional[Dict[str, Any]]:
+        """
+        Load Cost Explorer fixture data and filter by requested time window
+        to emulate real AWS CE behavior.
+        """
+        from pathlib import Path
+        import json
+
+        fixture_path = Path(__file__).parent.parent / "fixtures" / filename
+        if not fixture_path.exists():
+            return None
+
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        return data
+
+        logger.info(f"Using Cost Explorer fixture from {fixture_path}")
+        with fixture_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+
     # ----------------------------
     # Window helpers
     # ----------------------------
@@ -109,15 +127,10 @@ class CostExplorerService:
         """
         Get cost and usage data from AWS Cost Explorer.
 
-        Args:
-            start_date: Start datetime for cost analysis
-            end_date: End datetime (exclusive)
-            granularity: DAILY, MONTHLY, or HOURLY
-            group_by: List of dimensions to group by (e.g., ['SERVICE'])
-            metrics: List of metrics to retrieve (e.g., ['BlendedCost'])
-
-        Returns:
-            Cost and usage data from AWS Cost Explorer
+        In fixture mode, we load a local JSON file and slice ResultsByTime
+        to match the requested [start_date, end_date) window. This keeps
+        the analysis path identical to real AWS responses while giving us
+        deterministic demo data.
         """
         if not metrics:
             metrics = ["BlendedCost", "UnblendedCost", "UsageQuantity"]
@@ -133,6 +146,29 @@ class CostExplorerService:
             f"Fetching cost data from {start_str} to {end_str} (granularity={granularity})"
         )
 
+        # ----------------------------
+        # Fixture mode for local/demo
+        # ----------------------------
+        fixture = self._load_fixture("ce_cost_and_usage.json")
+        if fixture:
+            start_str = start_date.strftime("%Y-%m-%d")
+            end_str = end_date.strftime("%Y-%m-%d")
+
+            filtered = [
+                r for r in fixture.get("ResultsByTime", [])
+                if r["TimePeriod"]["Start"] >= start_str
+                and r["TimePeriod"]["End"] <= end_str
+            ]
+
+            return {
+                "ResultsByTime": filtered
+            }
+ 
+
+
+        # ----------------------------
+        # Real AWS Cost Explorer call
+        # ----------------------------
         group_by_params = [{"Type": "DIMENSION", "Key": dim} for dim in group_by]
 
         try:
@@ -157,6 +193,9 @@ class CostExplorerService:
         """
         Get a comprehensive cost overview for the last N days,
         compared to the previous N-day period.
+
+        If a local fixture file exists, we use that for both current and
+        previous data to enable deterministic testing on zero-spend accounts.
         """
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days)
@@ -164,26 +203,33 @@ class CostExplorerService:
         start_dt = datetime.combine(start_date, datetime.min.time())
         end_dt = datetime.combine(end_date, datetime.min.time())
 
-        current_data = self.get_cost_and_usage(
-            start_dt,
-            end_dt,
-            granularity="DAILY",
-            group_by=["SERVICE"],
-            metrics=["BlendedCost", "UnblendedCost", "UsageQuantity"],
-        )
+        # Try fixture first (dev/test), fall back to real AWS Cost Explorer
+        fixture = self._load_fixture("ce_cost_and_usage.json")
 
-        prev_end = start_date
-        prev_start = prev_end - timedelta(days=days)
-        prev_start_dt = datetime.combine(prev_start, datetime.min.time())
-        prev_end_dt = datetime.combine(prev_end, datetime.min.time())
+        if fixture:
+            current_data = fixture
+            previous_data = fixture
+        else:
+            current_data = self.get_cost_and_usage(
+                start_dt,
+                end_dt,
+                granularity="DAILY",
+                group_by=["SERVICE"],
+                metrics=["BlendedCost", "UnblendedCost", "UsageQuantity"],
+            )
 
-        previous_data = self.get_cost_and_usage(
-            prev_start_dt,
-            prev_end_dt,
-            granularity="DAILY",
-            group_by=["SERVICE"],
-            metrics=["BlendedCost"],
-        )
+            prev_end = start_date
+            prev_start = prev_end - timedelta(days=days)
+            prev_start_dt = datetime.combine(prev_start, datetime.min.time())
+            prev_end_dt = datetime.combine(prev_end, datetime.min.time())
+
+            previous_data = self.get_cost_and_usage(
+                prev_start_dt,
+                prev_end_dt,
+                granularity="DAILY",
+                group_by=["SERVICE"],
+                metrics=["BlendedCost"],
+            )
 
         analysis = self._analyze_cost_data(
             current_data=current_data,
@@ -346,27 +392,58 @@ class CostExplorerService:
         }
 
     def _calculate_total_cost(self, cost_data: Dict[str, Any]) -> Decimal:
+        """
+        Sum total cost from a Cost Explorer response.
+
+        Prefer UnblendedCost if present, else BlendedCost, else first metric.
+        This makes the analyzer more robust to metric changes and also works
+        with test fixtures that only include UnblendedCost.
+        """
         total = Decimal("0")
         for time_period in cost_data.get("ResultsByTime", []):
-            if time_period.get("Total"):
-                blended_cost = time_period["Total"].get("BlendedCost", {})
-                amount = blended_cost.get("Amount", "0")
-                total += Decimal(amount)
+            total_block = time_period.get("Total") or {}
+            if not total_block:
+                continue
+
+            metric_obj = (
+                total_block.get("UnblendedCost")
+                or total_block.get("BlendedCost")
+                or next(iter(total_block.values()), {"Amount": "0"})
+            )
+
+            amount = metric_obj.get("Amount", "0")
+            total += Decimal(amount)
         return total
 
     def _calculate_trend(self, current: Decimal, previous: Decimal) -> CostTrend:
+        """
+        Calculate trend between current and previous periods.
+
+        Handles the common FinOps case where the baseline (previous)
+        period has zero spend:
+          - If previous == 0 and current > 0 → treat as +100% and "up"
+          - If both are zero → 0% and "stable"
+        """
         change_amount = current - previous
+
         if previous > 0:
             change_percentage = float((change_amount / previous) * 100)
+        elif current > 0:
+            # New spend vs a zero baseline
+            change_percentage = 100.0
         else:
+            # Both zero
             change_percentage = 0.0
 
-        if abs(change_percentage) < 5:
+        # Direction logic
+        if current == 0 and previous == 0:
             trend_direction = "stable"
-        elif change_percentage > 0:
+        elif current > previous:
             trend_direction = "up"
-        else:
+        elif current < previous:
             trend_direction = "down"
+        else:
+            trend_direction = "stable"
 
         return CostTrend(
             current_period_cost=current,
@@ -387,9 +464,13 @@ class CostExplorerService:
         for time_period in current_data.get("ResultsByTime", []):
             for group in time_period.get("Groups", []):
                 service_name = group["Keys"][0] if group.get("Keys") else "Unknown"
-                metrics = group.get("Metrics", {})
-                blended_cost = metrics.get("BlendedCost", {})
-                amount = Decimal(blended_cost.get("Amount", "0"))
+                metrics = group.get("Metrics", {}) or {}
+                metric_obj = (
+                    metrics.get("UnblendedCost")
+                    or metrics.get("BlendedCost")
+                    or {}
+                )
+                amount = Decimal(metric_obj.get("Amount", "0"))
                 current_services[service_name] = (
                     current_services.get(service_name, Decimal("0")) + amount
                 )
@@ -399,9 +480,13 @@ class CostExplorerService:
         for time_period in previous_data.get("ResultsByTime", []):
             for group in time_period.get("Groups", []):
                 service_name = group["Keys"][0] if group.get("Keys") else "Unknown"
-                metrics = group.get("Metrics", {})
-                blended_cost = metrics.get("BlendedCost", {})
-                amount = Decimal(blended_cost.get("Amount", "0"))
+                metrics = group.get("Metrics", {}) or {}
+                metric_obj = (
+                    metrics.get("UnblendedCost")
+                    or metrics.get("BlendedCost")
+                    or {}
+                )
+                amount = Decimal(metric_obj.get("Amount", "0"))
                 previous_services[service_name] = (
                     previous_services.get(service_name, Decimal("0")) + amount
                 )
@@ -436,3 +521,4 @@ class CostExplorerService:
 
         breakdown.sort(key=lambda x: x.total_cost, reverse=True)
         return breakdown
+

@@ -1,0 +1,188 @@
+{
+  "ResultsByTime": [
+    {
+      "TimePeriod": { "Start": "2026-01-05", "End": "2026-01-06" },
+      "Total": {
+        "UnblendedCost": { "Amount": "30.00", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "12.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "7.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "4.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "3.60", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "3.40", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-06", "End": "2026-01-07" },
+      "Total": {
+        "UnblendedCost": { "Amount": "30.00", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "12.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "7.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "4.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "3.60", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "3.40", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-07", "End": "2026-01-08" },
+      "Total": {
+        "UnblendedCost": { "Amount": "30.00", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "12.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "7.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "4.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "3.60", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "3.40", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-08", "End": "2026-01-09" },
+      "Total": {
+        "UnblendedCost": { "Amount": "30.00", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "12.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "7.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "4.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "3.60", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "3.40", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-09", "End": "2026-01-10" },
+      "Total": {
+        "UnblendedCost": { "Amount": "30.00", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "12.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "7.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "4.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "3.60", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "3.40", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-10", "End": "2026-01-11" },
+      "Total": {
+        "UnblendedCost": { "Amount": "30.00", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "12.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "7.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "4.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "3.60", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "3.40", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-11", "End": "2026-01-12" },
+      "Total": {
+        "UnblendedCost": { "Amount": "30.00", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "12.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "7.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "4.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "3.60", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "3.40", "Unit": "USD" } } }
+      ]
+    },
+
+    {
+      "TimePeriod": { "Start": "2026-01-12", "End": "2026-01-13" },
+      "Total": {
+        "UnblendedCost": { "Amount": "42.60", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "17.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "10.14", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "6.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "4.97", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "4.49", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-13", "End": "2026-01-14" },
+      "Total": {
+        "UnblendedCost": { "Amount": "42.60", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "17.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "10.14", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "6.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "4.97", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "4.49", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-14", "End": "2026-01-15" },
+      "Total": {
+        "UnblendedCost": { "Amount": "42.60", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "17.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "10.14", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "6.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "4.97", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "4.49", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-15", "End": "2026-01-16" },
+      "Total": {
+        "UnblendedCost": { "Amount": "42.60", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "17.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "10.14", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "6.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "4.97", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "4.49", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-16", "End": "2026-01-17" },
+      "Total": {
+        "UnblendedCost": { "Amount": "42.60", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "17.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "10.14", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "6.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "4.97", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "4.49", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-17", "End": "2026-01-18" },
+      "Total": {
+        "UnblendedCost": { "Amount": "42.60", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "17.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "10.14", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "6.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "4.97", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "4.49", "Unit": "USD" } } }
+      ]
+    },
+    {
+      "TimePeriod": { "Start": "2026-01-18", "End": "2026-01-19" },
+      "Total": {
+        "UnblendedCost": { "Amount": "42.60", "Unit": "USD" }
+      },
+      "Groups": [
+        { "Keys": ["Amazon EC2"], "Metrics": { "UnblendedCost": { "Amount": "17.00", "Unit": "USD" } } },
+        { "Keys": ["Amazon RDS"], "Metrics": { "UnblendedCost": { "Amount": "10.14", "Unit": "USD" } } },
+        { "Keys": ["Amazon S3"], "Metrics": { "UnblendedCost": { "Amount": "6.00", "Unit": "USD" } } },
+        { "Keys": ["CloudWatch"], "Metrics": { "UnblendedCost": { "Amount": "4.97", "Unit": "USD" } } },
+        { "Keys": ["AWS Lambda"], "Metrics": { "UnblendedCost": { "Amount": "4.49", "Unit": "USD" } } }
+      ]
+    }
+  ]
+}
+

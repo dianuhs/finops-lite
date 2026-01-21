@@ -1,0 +1,33 @@
+{
+  "ResultsByTime": [
+    {
+      "TimePeriod": { "Start": "2026-01-12", "End": "2026-01-13" },
+      "Total": {
+        "UnblendedCost": { "Amount": "42.50", "Unit": "USD" }
+      },
+      "Groups": [
+        {
+          "Keys": ["Amazon EC2"],
+          "Metrics": { "UnblendedCost": { "Amount": "18.20", "Unit": "USD" } }
+        },
+        {
+          "Keys": ["Amazon RDS"],
+          "Metrics": { "UnblendedCost": { "Amount": "9.30", "Unit": "USD" } }
+        },
+        {
+          "Keys": ["Amazon S3"],
+          "Metrics": { "UnblendedCost": { "Amount": "6.00", "Unit": "USD" } }
+        },
+        {
+          "Keys": ["AWS Lambda"],
+          "Metrics": { "UnblendedCost": { "Amount": "4.50", "Unit": "USD" } }
+        },
+        {
+          "Keys": ["CloudWatch"],
+          "Metrics": { "UnblendedCost": { "Amount": "4.50", "Unit": "USD" } }
+        }
+      ]
+    }
+  ]
+}
+
