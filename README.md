@@ -34,7 +34,7 @@ Includes:
 finops cost overview --days 7
 ```
 
-![Rolling cost overview](docs/images/finops-lite-cost-overview-light.png)
+![Rolling cost overview](docs/images/cost-overview.png)
 
 ---
 
@@ -54,7 +54,7 @@ All reports can be rendered in multiple formats depending on the audience or dow
 finops cost overview --days 30 --format json
 ```
 
-![JSON output](docs/images/finops-lite-cost-overview-json.png)
+![JSON output](docs/images/json-demo.png)
 
 ---
 
@@ -66,7 +66,7 @@ Executive output translates raw cost data into decision-oriented language.
 finops cost overview --days 30 --format executive
 ```
 
-![Executive summary](docs/images/finops-lite-cost-overview-executive.png)
+![Executive summary](docs/images/executive-summary.png)
 
 ---
 
@@ -126,3 +126,4 @@ It emphasizes:
 ## License
 
 MIT
+
