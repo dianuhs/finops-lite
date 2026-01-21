@@ -14,15 +14,14 @@ A CLI-first cloud cost analysis engine built on AWS Cost Explorer, designed to t
 
 Most cloud cost tooling optimizes for visualization. FinOps Lite optimizes for reasoning.
 
-Instead of dashboards that passively refresh, FinOps Lite produces deterministic cost reports that can be inspected, exported, diffed across time, and embedded directly into workflows. It is designed for practitioners who want to understand *why* spend changes, not just *that* it did.
+Instead of dashboards that passively refresh, FinOps Lite produces deterministic cost reports that can be inspected, exported, diffed across time, and embedded directly into workflows. It is designed for practitioners who want to understand why spend changes, not just that it did.
 
 FinOps Lite intentionally focuses on correctness, portability, and signal quality. It is a foundation layer for higher-order FinOps automation rather than an all-in-one platform.
 
 ---
 
-## Core Capabilities
+## Core Capability: Rolling Cost Overview
 
-### Rolling Cost Overview
 Analyze the last N days of cloud spend and compare it to the previous period.
 
 Includes:
@@ -31,76 +30,43 @@ Includes:
 - period-over-period trend
 - top services by cost and concentration
 
-Command:
+```bash
 finops cost overview --days 7
+```
 
-[screenshot of rolling cost overview CLI output here]
-
----
-
-### Calendar Month Reporting
-Analyze a full calendar month using Cost Explorer’s native month boundaries and compare it to the prior month.
-
-Command:
-finops cost monthly --month 2026-01
-
-[screenshot of monthly cost report here]
+![Rolling cost overview](docs/images/finops-lite-cost-overview-light.png)
 
 ---
 
-### Month-over-Month Comparison
-Compare two calendar months directly to identify deltas and service-level cost drivers.
-
-Command:
-finops cost compare --current 2026-01 --baseline 2025-12
-
-[screenshot of month comparison output here]
-
----
-
-## Output Formats
+## Automation-Ready Output Formats
 
 All reports can be rendered in multiple formats depending on the audience or downstream use case:
 
-- table – rich CLI output
-- json – stable, machine-readable schema
+- table – rich CLI output for operators
+- json – stable, machine-readable schema for pipelines
 - csv – spreadsheet-friendly
 - yaml – configuration and pipeline friendly
 - executive – narrative summary with recommendations
 
-[screenshot of executive summary output here]  
-[screenshot of JSON report schema here]
+### JSON Output (Schema-Stable)
+
+```bash
+finops cost overview --days 30 --format json
+```
+
+![JSON output](docs/images/finops-lite-cost-overview-json.png)
 
 ---
 
 ## Executive Summary Mode
 
-Executive output translates raw cost data into decision-oriented language, including:
-- monthly run-rate estimates
-- spend concentration analysis
-- targeted optimization prompts
+Executive output translates raw cost data into decision-oriented language.
 
-This format is designed to be shared directly with leadership or embedded in written reports.
+```bash
+finops cost overview --days 30 --format executive
+```
 
----
-
-## Reporting Examples
-
-[screenshot of CLI table output here]  
-[screenshot of CSV export opened in spreadsheet here]  
-[screenshot of YAML output here]
-
----
-
-## Report Schema (Stable by Design)
-
-All structured outputs follow a consistent schema:
-- metadata (version, generated_at, report_type)
-- reporting window (rolling or calendar)
-- summary (total_cost, daily_average, trend)
-- services (per-service cost, percentage of total, daily average, trend)
-
-Schema stability is intentional. It allows FinOps Lite to act as a reliable upstream source for automation, analytics pipelines, and future tooling.
+![Executive summary](docs/images/finops-lite-cost-overview-executive.png)
 
 ---
 
@@ -109,25 +75,22 @@ Schema stability is intentional. It allows FinOps Lite to act as a reliable upst
 FinOps Lite can operate without live AWS spend.
 
 If a Cost Explorer fixture exists in:
+
+```
 finops_lite/fixtures/
+```
 
 the CLI will automatically use it instead of calling AWS.
 
-This enables:
-- demos without AWS credentials
-- development on zero-spend accounts
-- deterministic testing
-- CI pipelines without Cost Explorer API usage
-
-[screenshot of fixture-based run here]
+All screenshots in this README were generated using fixture-based demo data.
 
 ---
 
 ## Installation
 
-Clone the repository and install in editable mode:
-
+```bash
 pip install -e .
+```
 
 ---
 
@@ -138,19 +101,6 @@ FinOps Lite uses standard AWS authentication methods:
 - named profiles
 - environment variables
 - STS-based credentials
-
-Live data requires permission to access AWS Cost Explorer.
-
-> AWS Cost Explorer API calls cost approximately $0.01 per request.  
-> FinOps Lite includes caching to minimize unnecessary calls.
-
----
-
-## Error Handling
-
-FinOps Lite provides clear, actionable guidance when things go wrong.
-
-[screenshot of AWS credentials error output here]
 
 ---
 
@@ -164,18 +114,12 @@ It emphasizes:
 - repeatable outputs
 - portability across teams and environments
 
-This makes it suitable both as a standalone analysis tool and as a foundation layer for more advanced FinOps systems.
-
 ---
 
 ## Roadmap
 
-FinOps Lite is the base layer for upcoming tooling, including:
 - Guard Dog – automated cost hygiene and anomaly detection
 - Recovery Economics – cost-to-value analysis and optimization modeling
-- scheduled reporting and alerting
-
-Each builds directly on the report schema produced by FinOps Lite.
 
 ---
 
