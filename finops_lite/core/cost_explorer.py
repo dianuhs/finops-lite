@@ -9,10 +9,12 @@ Upgrades in this version:
 """
 
 import logging
+import csv
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TextIO
 
 from ..utils.config import FinOpsConfig
 
@@ -53,6 +55,29 @@ class ServiceCostBreakdown:
     daily_average: Decimal
     trend: CostTrend
     top_usage_types: List[Dict[str, Any]]
+
+
+@dataclass
+class FocusLiteRecord:
+    """
+    Normalized record for FOCUS-lite style exports.
+
+    This is intentionally AWS-first but schema-aware so other providers
+    can be added later without changing downstream tooling.
+    """
+
+    provider: str               # "aws" for now
+    service: str                # AWS service name (e.g., "Amazon EC2")
+    resource_id: Optional[str]  # None in v1 (SERVICE-level only)
+    environment: str            # "prod", "staging", "dev", "unknown"
+    cost: Decimal               # Blended cost amount for the period
+    currency: str               # Usually "USD"
+    usage_amount: Optional[Decimal]
+    usage_unit: Optional[str]
+    time_window_start: date
+    time_window_end: date
+    allocation_method: str      # "direct", "shared", "inferred"
+    allocation_confidence: str  # "high", "medium", "low"
 
 
 class CostExplorerService:
@@ -149,6 +174,139 @@ class CostExplorerService:
         except Exception as e:
             logger.error(f"Error fetching cost data: {e}")
             raise
+
+    # ----------------------------
+    # FOCUS-lite helpers
+    # ----------------------------
+    def get_focus_lite_records(self, days: int = 30) -> List[FocusLiteRecord]:
+        """
+        Normalize AWS cost data for the last N days into a FOCUS-lite shape.
+
+        v1 is SERVICE-level only (no resource IDs yet), which still plays
+        nicely with downstream analysis and spreadsheets.
+        """
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=days)
+
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.min.time())
+
+        response = self.get_cost_and_usage(
+            start_dt,
+            end_dt,
+            granularity="DAILY",
+            group_by=["SERVICE"],
+            metrics=["BlendedCost", "UsageQuantity"],
+        )
+
+        records: List[FocusLiteRecord] = []
+
+        for time_period in response.get("ResultsByTime", []):
+            time_info = time_period.get("TimePeriod", {})
+            period_start_str = time_info.get("Start")
+            period_end_str = time_info.get("End")
+
+            try:
+                period_start = datetime.strptime(
+                    period_start_str, "%Y-%m-%d"
+                ).date() if period_start_str else start_date
+            except Exception:
+                period_start = start_date
+
+            try:
+                period_end = datetime.strptime(
+                    period_end_str, "%Y-%m-%d"
+                ).date() if period_end_str else end_date
+            except Exception:
+                period_end = end_date
+
+            for group in time_period.get("Groups", []):
+                service_name = group.get("Keys", ["Unknown"])[0]
+                metrics = group.get("Metrics", {})
+
+                blended_cost = metrics.get("BlendedCost", {})
+                amount_str = blended_cost.get("Amount", "0")
+                currency = blended_cost.get("Unit", "USD")
+                try:
+                    cost_amount = Decimal(amount_str)
+                except Exception:
+                    cost_amount = Decimal("0")
+
+                usage_amount: Optional[Decimal] = None
+                usage_unit: Optional[str] = None
+                usage = metrics.get("UsageQuantity")
+                if usage:
+                    usage_amount_str = usage.get("Amount", "0")
+                    try:
+                        usage_amount = Decimal(usage_amount_str)
+                    except Exception:
+                        usage_amount = None
+                    usage_unit = usage.get("Unit")
+
+                record = FocusLiteRecord(
+                    provider="aws",
+                    service=service_name,
+                    resource_id=None,
+                    environment="unknown",
+                    cost=cost_amount,
+                    currency=currency,
+                    usage_amount=usage_amount,
+                    usage_unit=usage_unit,
+                    time_window_start=period_start,
+                    time_window_end=period_end,
+                    allocation_method="direct",
+                    allocation_confidence="medium",
+                )
+                records.append(record)
+
+        return records
+
+    def export_focus_lite(self, days: int = 30, file: TextIO = sys.stdout) -> None:
+        """
+        Export FOCUS-lite style records as CSV.
+
+        This is CLI-friendly and plays well with spreadsheets, notebooks,
+        and other tools that want a simple, normalized table.
+        """
+        records = self.get_focus_lite_records(days=days)
+
+        fieldnames = [
+            "provider",
+            "service",
+            "resource_id",
+            "environment",
+            "cost",
+            "currency",
+            "usage_amount",
+            "usage_unit",
+            "time_window_start",
+            "time_window_end",
+            "allocation_method",
+            "allocation_confidence",
+        ]
+
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for r in records:
+            writer.writerow(
+                {
+                    "provider": r.provider,
+                    "service": r.service,
+                    "resource_id": r.resource_id or "",
+                    "environment": r.environment,
+                    "cost": f"{r.cost:.4f}",
+                    "currency": r.currency,
+                    "usage_amount": ""
+                    if r.usage_amount is None
+                    else f"{r.usage_amount:.4f}",
+                    "usage_unit": r.usage_unit or "",
+                    "time_window_start": r.time_window_start.isoformat(),
+                    "time_window_end": r.time_window_end.isoformat(),
+                    "allocation_method": r.allocation_method,
+                    "allocation_confidence": r.allocation_confidence,
+                }
+            )
 
     # ----------------------------
     # Overviews
@@ -322,7 +480,9 @@ class CostExplorerService:
 
         trend = self._calculate_trend(current_total, previous_total)
         service_breakdown = self._get_service_breakdown(
-            current_data, previous_data, days=days
+            current_data=current_data,
+            previous_data=previous_data,
+            days=days,
         )
 
         daily_average = (current_total / days) if days > 0 else Decimal("0")
