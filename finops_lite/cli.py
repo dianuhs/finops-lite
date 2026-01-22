@@ -930,6 +930,73 @@ def _display_month_compare_table(config: FinOpsConfig, analysis: dict):
 
     console.print(table)
 
+@cli.group()
+@click.pass_context
+def export(ctx):
+    """📤 Export and integration commands."""
+    pass
+
+
+@export.command("focus")
+@click.option(
+    "--days",
+    "-d",
+    default=30,
+    type=int,
+    help="Number of days to include in the export (default: 30)",
+    callback=lambda ctx, param, value: validate_days(value) if value else 30,
+)
+@click.pass_context
+def export_focus(ctx, days):
+    """Export AWS cost data as FOCUS-lite CSV (service-level, one row per service per day)."""
+    config = ctx.obj.config
+    logger = ctx.obj.logger
+    dry_run = ctx.obj.dry_run
+    cache_manager = ctx.obj.cache_manager
+    performance_tracker = ctx.obj.performance_tracker
+
+    if performance_tracker:
+        performance_tracker.start_operation("export_focus")
+
+    try:
+        if dry_run:
+            console.print(
+                "[yellow]Dry-run mode: FOCUS-lite export requires real AWS data. "
+                "Run without --dry-run to generate CSV from Cost Explorer.[/yellow]"
+            )
+            return
+
+        _ = _test_aws_connectivity(config, logger, cache_manager)
+
+        from .core.cost_explorer import CostExplorerService
+
+        svc = CostExplorerService(config)
+        # Write CSV directly to stdout; no extra decoration so it's pipe-friendly.
+        svc.export_focus_lite(days=days)
+
+    except (
+        CostExplorerNotEnabledError,
+        CostExplorerWarmingUpError,
+        AWSCredentialsError,
+        AWSPermissionError,
+        APIRateLimitError,
+        NetworkTimeoutError,
+        ValidationError,
+    ) as e:
+        if performance_tracker:
+            performance_tracker.record_error()
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
+    except Exception as e:
+        if performance_tracker:
+            performance_tracker.record_error()
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
+    finally:
+        if performance_tracker:
+            performance_tracker.finish_current_operation()
+            performance_tracker.show_summary(verbose=config.output.verbose)
+
 
 @cli.group()
 def cache():
