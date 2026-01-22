@@ -6,7 +6,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![codecov](https://codecov.io/gh/dianuhs/finops-lite/branch/main/graph/badge.svg)](https://codecov.io/gh/dianuhs/finops-lite)
 
-A CLI-first cloud cost analysis engine built on AWS Cost Explorer, designed to turn raw spend data into clear, decision-ready signals.
+A CLI-first cloud cost analysis engine built on AWS Cost Explorer, designed to turn raw spend data into clear, decision ready signals.
 
 ---
 
@@ -17,6 +17,21 @@ Most cloud cost tooling optimizes for visualization. FinOps Lite optimizes for r
 Instead of dashboards that passively refresh, FinOps Lite produces deterministic cost reports that can be inspected, exported, diffed across time, and embedded directly into workflows. It is designed for practitioners who want to understand why spend changes, not just that it did.
 
 FinOps Lite intentionally focuses on correctness, portability, and signal quality. It is a foundation layer for higher-order FinOps automation rather than an all-in-one platform.
+
+---
+
+## What’s New in FinOps Lite v1
+
+This release focuses on making FinOps Lite a stronger foundation layer rather than adding surface level features.
+
+Key upgrades include:
+
+- A FOCUS-aligned export that produces line item cost records with explicit time windows and allocation metadata
+- Schema-stable CSV output designed for automation, diffing, and downstream systems
+- Clear separation between analysis (cost reasoning) and enforcement (future Guard Dog layer)
+- Deterministic outputs suitable for CI, audits, and reproducible decision making
+
+These changes position FinOps Lite as an engine for FinOps systems, not a dashboard replacement.
 
 ---
 
@@ -67,6 +82,18 @@ finops cost overview --days 30 --format executive
 ```
 
 ![Executive summary](docs/images/executive-summary.png)
+
+---
+
+## FOCUS-Aligned Cost Export
+
+FinOps Lite can export cost data in a FOCUS-aligned, line-item format suitable for downstream FinOps tooling.
+
+```bash
+finops export focus --days 7
+```
+
+The export produces one row per provider, service, and day, with explicit time windows and allocation metadata. The result is a clean, trustworthy cost dataset that can be extended as tagging, account structure, or multi-cloud support is added.
 
 ---
 
@@ -126,4 +153,5 @@ It emphasizes:
 ## License
 
 MIT
+
 
