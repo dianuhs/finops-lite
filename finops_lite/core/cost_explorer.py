@@ -155,16 +155,13 @@ class CostExplorerService:
             end_str = end_date.strftime("%Y-%m-%d")
 
             filtered = [
-                r for r in fixture.get("ResultsByTime", [])
+                r
+                for r in fixture.get("ResultsByTime", [])
                 if r["TimePeriod"]["Start"] >= start_str
                 and r["TimePeriod"]["End"] <= end_str
             ]
 
-            return {
-                "ResultsByTime": filtered
-            }
- 
-
+            return {"ResultsByTime": filtered}
 
         # ----------------------------
         # Real AWS Cost Explorer call
@@ -466,9 +463,7 @@ class CostExplorerService:
                 service_name = group["Keys"][0] if group.get("Keys") else "Unknown"
                 metrics = group.get("Metrics", {}) or {}
                 metric_obj = (
-                    metrics.get("UnblendedCost")
-                    or metrics.get("BlendedCost")
-                    or {}
+                    metrics.get("UnblendedCost") or metrics.get("BlendedCost") or {}
                 )
                 amount = Decimal(metric_obj.get("Amount", "0"))
                 current_services[service_name] = (
@@ -482,9 +477,7 @@ class CostExplorerService:
                 service_name = group["Keys"][0] if group.get("Keys") else "Unknown"
                 metrics = group.get("Metrics", {}) or {}
                 metric_obj = (
-                    metrics.get("UnblendedCost")
-                    or metrics.get("BlendedCost")
-                    or {}
+                    metrics.get("UnblendedCost") or metrics.get("BlendedCost") or {}
                 )
                 amount = Decimal(metric_obj.get("Amount", "0"))
                 previous_services[service_name] = (
@@ -521,4 +514,3 @@ class CostExplorerService:
 
         breakdown.sort(key=lambda x: x.total_cost, reverse=True)
         return breakdown
-
