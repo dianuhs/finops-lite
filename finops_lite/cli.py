@@ -7,6 +7,7 @@ Upgrades in this version:
 - Adds `finops cost compare` for month vs month comparisons (YYYY-MM vs YYYY-MM)
 - Keeps `finops cost overview` behavior intact
 - Uses real formatter outputs (no demo placeholders) via updated ReportFormatter
+- Adds `finops export focus` for FOCUS-lite CSV export
 """
 
 import sys
@@ -116,6 +117,7 @@ def cli(
       finops cost overview --format json
       finops cost monthly --month 2026-01
       finops cost compare --current 2026-01 --baseline 2025-12
+      finops export focus --days 30 > focus-lite.csv
     """
     ctx.ensure_object(FinOpsContext)
 
@@ -929,6 +931,7 @@ def _display_month_compare_table(config: FinOpsConfig, analysis: dict):
         )
 
     console.print(table)
+
 
 @cli.group()
 @click.pass_context
