@@ -1,6 +1,6 @@
 # FinOps Lite
 
-A CLI-first cloud cost analysis engine built on AWS Cost Explorer, designed to turn raw spend data into clear, decision-ready signals.
+A CLI-first cloud cost analysis engine built on AWS Cost Explorer, designed to turn raw spend data into clear, decision ready signals.
 
 ---
 
@@ -42,7 +42,7 @@ AWS native tools prioritize interactive exploration. FinOps Lite prioritizes rep
 ## Core Capability: Rolling Cost Overview
 
 ```bash
-finops cost overview --days 7
+finops cost overview --days 30
 ```
 
 ![Rolling cost overview](docs/images/cost-overview.png)
@@ -80,3 +80,4 @@ finops export focus --days 30
 ## License
 
 MIT
+
