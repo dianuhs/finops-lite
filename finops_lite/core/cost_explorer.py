@@ -8,13 +8,13 @@ Upgrades in this version:
 - Adds compare helpers for month vs month
 """
 
-import logging
 import csv
+import logging
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple, TextIO
+from typing import Any, Dict, List, Optional, TextIO, Tuple
 
 from ..utils.config import FinOpsConfig
 
