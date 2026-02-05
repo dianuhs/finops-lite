@@ -11,6 +11,38 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 
+try:
+    from botocore.exceptions import (
+        BotoCoreError,
+        ClientError,
+        ConnectTimeoutError,
+        EndpointConnectionError,
+        NoCredentialsError,
+        PartialCredentialsError,
+        ReadTimeoutError,
+    )
+except Exception:  # pragma: no cover - botocore should be present in runtime deps
+    class BotoCoreError(Exception):
+        pass
+
+    class ClientError(Exception):
+        pass
+
+    class ConnectTimeoutError(Exception):
+        pass
+
+    class EndpointConnectionError(Exception):
+        pass
+
+    class NoCredentialsError(Exception):
+        pass
+
+    class PartialCredentialsError(Exception):
+        pass
+
+    class ReadTimeoutError(Exception):
+        pass
+
 console = Console()
 
 
@@ -28,6 +60,12 @@ class AWSCredentialsError(FinOpsError):
 
 class AWSPermissionError(FinOpsError):
     """Insufficient AWS permissions."""
+
+    pass
+
+
+class AWSServiceError(FinOpsError):
+    """Generic AWS service/runtime error."""
 
     pass
 
@@ -95,6 +133,9 @@ def handle_error(error: Exception, verbose: bool = False):
     elif isinstance(error, AWSPermissionError):
         _handle_permission_error(error)
 
+    elif isinstance(error, AWSServiceError):
+        _handle_aws_service_error(error)
+
     elif isinstance(error, ValidationError):
         _handle_validation_error(error)
 
@@ -106,26 +147,17 @@ def handle_error(error: Exception, verbose: bool = False):
 
 
 def _handle_credentials_error(error: AWSCredentialsError):
-    """Handle AWS credentials errors with detailed guidance."""
-    error_panel = """[red]❌ AWS Credentials Not Found[/red]
+    """Handle AWS credentials errors with concise, actionable guidance."""
+    details = str(error).strip()
+    error_panel = f"""[red]❌ AWS authentication failed[/red]
 
-[yellow]💡 Quick Fixes:[/yellow]
-  [bold]1. Configure AWS CLI:[/bold]
-     aws configure
-     
-  [bold]2. Use named profile:[/bold]
-     export AWS_PROFILE=your-profile-name
-     # or use: finops --profile your-profile-name
-     
-  [bold]3. Use environment variables:[/bold]
-     export AWS_ACCESS_KEY_ID=your-key
-     export AWS_SECRET_ACCESS_KEY=your-secret
-     
-  [bold]4. For FinOps, create a read-only IAM user:[/bold]
-     • Attach policy: ReadOnlyAccess
-     • For Cost Explorer: ce:GetCostAndUsage, ce:GetRightsizingRecommendation
-     
-[dim]💰 Cost Note: Cost Explorer API calls cost ~$0.01 each[/dim]"""
+[yellow]What failed:[/yellow] FinOps Lite could not authenticate with AWS.
+[yellow]Details:[/yellow] {details}
+
+[yellow]Next:[/yellow]
+  [bold]1.[/bold] Run [bold]aws configure[/bold] (or set AWS_PROFILE)
+  [bold]2.[/bold] Verify the profile/region passed to FinOps Lite
+  [bold]3.[/bold] Retry the command"""
 
     console.print(Panel(error_panel, title="🔑 AWS Credentials", border_style="red"))
 
@@ -177,20 +209,16 @@ def _handle_cost_explorer_warming_up(error: CostExplorerWarmingUpError):
 
 def _handle_rate_limit_error(error: APIRateLimitError):
     """Handle AWS API rate limit errors."""
-    error_panel = """[red]❌ AWS API Rate Limit Exceeded[/red]
+    details = str(error).strip()
+    error_panel = f"""[red]❌ AWS API rate limit reached[/red]
 
-[yellow]⏱️  Too many requests in short time[/yellow]
+[yellow]What failed:[/yellow] AWS throttled one or more API calls.
+[yellow]Details:[/yellow] {details}
 
-[yellow]💡 Solutions:[/yellow]
-  [bold]1. Wait and retry:[/bold] AWS limits reset quickly
-  [bold]2. Use --days with smaller values[/bold]
-  [bold]3. Space out your requests[/bold]
-  
-[yellow]🚦 Rate Limits:[/yellow]
-  • Cost Explorer: ~10 requests/second
-  • Other AWS APIs: Varies by service
-  
-[dim]💰 Remember: Each Cost Explorer call costs ~$0.01[/dim]"""
+[yellow]Next:[/yellow]
+  [bold]1.[/bold] Wait briefly and retry
+  [bold]2.[/bold] Reduce request frequency or use smaller windows
+  [bold]3.[/bold] Use cache-enabled runs where possible"""
 
     console.print(Panel(error_panel, title="🚦 Rate Limit", border_style="red"))
 
@@ -218,25 +246,34 @@ def _handle_network_timeout(error: NetworkTimeoutError):
 
 def _handle_permission_error(error: AWSPermissionError):
     """Handle AWS permission errors."""
-    error_panel = """[red]❌ Insufficient AWS Permissions[/red]
+    details = str(error).strip()
+    error_panel = f"""[red]❌ Access denied calling AWS APIs[/red]
 
-[yellow]🔐 Your AWS user lacks required permissions[/yellow]
+[yellow]What failed:[/yellow] The current identity does not have required permissions.
+[yellow]Details:[/yellow] {details}
 
-[yellow]💡 Required permissions for FinOps:[/yellow]
-  [bold]Cost Explorer:[/bold]
-  • ce:GetCostAndUsage
-  • ce:GetRightsizingRecommendation
-  • ce:GetReservationCoverage
-  
-  [bold]Resource Analysis:[/bold]
-  • ec2:DescribeInstances
-  • rds:DescribeDBInstances
-  • s3:ListBucket (for bucket analysis)
-  
-[yellow]🛠️  Quick fix:[/yellow]
-  [bold]Attach AWS managed policy:[/bold] ReadOnlyAccess + CostExplorerAccess"""
+[yellow]Next:[/yellow]
+  [bold]1.[/bold] Ensure access to [bold]ce:GetCostAndUsage[/bold] and [bold]sts:GetCallerIdentity[/bold]
+  [bold]2.[/bold] Use the correct IAM role/profile
+  [bold]3.[/bold] Retry the command"""
 
     console.print(Panel(error_panel, title="🔐 Permissions", border_style="red"))
+
+
+def _handle_aws_service_error(error: AWSServiceError):
+    """Handle generic AWS service/runtime errors."""
+    details = str(error).strip()
+    error_panel = f"""[red]❌ AWS service error[/red]
+
+[yellow]What failed:[/yellow] AWS returned an unexpected service/runtime error.
+[yellow]Details:[/yellow] {details}
+
+[yellow]Next:[/yellow]
+  [bold]1.[/bold] Retry shortly (some errors are transient)
+  [bold]2.[/bold] If persistent, verify region/service health and permissions
+  [bold]3.[/bold] Re-run with [bold]--verbose[/bold] for extra context"""
+
+    console.print(Panel(error_panel, title="☁️ AWS Service Error", border_style="red"))
 
 
 def _handle_validation_error(error: ValidationError):
@@ -340,39 +377,106 @@ def aws_error_mapper(func: Callable) -> Callable:
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            error_message = str(e).lower()
+            # Already mapped
+            if isinstance(e, FinOpsError):
+                raise
 
-            # Map AWS SDK exceptions to our custom exceptions
-            if "credentials" in error_message or "access denied" in error_message:
-                if "cost explorer" in error_message:
-                    raise CostExplorerNotEnabledError(
-                        "Cost Explorer not enabled or insufficient permissions"
+            # Credentials
+            if isinstance(e, (NoCredentialsError, PartialCredentialsError)):
+                raise AWSCredentialsError(
+                    "AWS credentials are missing or incomplete. "
+                    "Configure credentials with aws configure or use AWS_PROFILE."
+                )
+
+            # Network/runtime connectivity
+            if isinstance(
+                e,
+                (
+                    ConnectTimeoutError,
+                    EndpointConnectionError,
+                    ReadTimeoutError,
+                ),
+            ):
+                raise NetworkTimeoutError(f"AWS network error: {e}")
+
+            # Structured AWS API errors
+            if isinstance(e, ClientError):
+                error = e.response.get("Error", {})
+                code = error.get("Code", "Unknown")
+                message = error.get("Message", str(e))
+                detail = f"{code}: {message}"
+                code_l = code.lower()
+                msg_l = message.lower()
+
+                credential_codes = {
+                    "unrecognizedclientexception",
+                    "invalidclienttokenid",
+                    "signaturedoesnotmatch",
+                    "authfailure",
+                    "expiredtoken",
+                    "expiredtokenexception",
+                }
+                permission_codes = {
+                    "accessdenied",
+                    "accessdeniedexception",
+                    "unauthorizedoperation",
+                    "notauthorizedexception",
+                    "operationnotpermittedexception",
+                }
+                throttling_codes = {
+                    "throttling",
+                    "throttlingexception",
+                    "requestlimitexceeded",
+                    "toomanyrequestsexception",
+                    "limitexceededexception",
+                    "priorrequestnotcomplete",
+                }
+
+                if code_l in credential_codes or "security token" in msg_l:
+                    raise AWSCredentialsError(
+                        f"AWS credentials are missing or invalid ({detail})"
                     )
-                raise AWSCredentialsError(f"AWS credentials error: {e}")
 
-            elif "cost explorer" in error_message:
                 if (
-                    "data is not available" in error_message
-                    or "warming up" in error_message
+                    code_l in permission_codes
+                    or "not authorized" in msg_l
+                    or "access denied" in msg_l
                 ):
-                    raise CostExplorerWarmingUpError(
-                        "Cost Explorer data not yet available (still warming up)"
-                    )
-                elif "not enabled" in error_message:
-                    raise CostExplorerNotEnabledError(
-                        "Cost Explorer not enabled in this account"
-                    )
-                else:
-                    raise CostExplorerError(f"Cost Explorer error: {e}")
+                    raise AWSPermissionError(f"AWS access denied ({detail})")
 
-            elif "throttling" in error_message or "rate limit" in error_message:
-                raise APIRateLimitError(f"AWS API rate limit exceeded: {e}")
+                if code_l in throttling_codes or "rate exceeded" in msg_l:
+                    raise APIRateLimitError(f"AWS throttling/rate limit ({detail})")
 
-            elif "timeout" in error_message or "connection" in error_message:
-                raise NetworkTimeoutError(f"Network timeout or connection error: {e}")
+                if "cost explorer" in msg_l:
+                    if "data is not available" in msg_l or "warming up" in msg_l:
+                        raise CostExplorerWarmingUpError(
+                            f"Cost Explorer data is still warming up ({detail})"
+                        )
+                    if "not enabled" in msg_l:
+                        raise CostExplorerNotEnabledError(
+                            f"Cost Explorer not enabled in this account ({detail})"
+                        )
+                    raise CostExplorerError(f"Cost Explorer error ({detail})")
 
-            elif "permission" in error_message or "forbidden" in error_message:
-                raise AWSPermissionError(f"Insufficient AWS permissions: {e}")
+                raise AWSServiceError(f"AWS service error ({detail})")
+
+            # Generic botocore runtime errors
+            if isinstance(e, BotoCoreError):
+                err_l = str(e).lower()
+                if "timeout" in err_l or "connection" in err_l:
+                    raise NetworkTimeoutError(f"AWS network error: {e}")
+                raise AWSServiceError(f"AWS SDK runtime error: {e}")
+
+            # Fallback string-based mapping
+            error_message = str(e).lower()
+            if "credentials" in error_message:
+                raise AWSCredentialsError(f"AWS credentials error: {e}")
+            if "throttling" in error_message or "rate limit" in error_message:
+                raise APIRateLimitError(f"AWS throttling/rate limit: {e}")
+            if "permission" in error_message or "forbidden" in error_message:
+                raise AWSPermissionError(f"AWS permission error: {e}")
+            if "timeout" in error_message or "connection" in error_message:
+                raise NetworkTimeoutError(f"AWS network error: {e}")
 
             # Re-raise as-is if we can't map it
             raise
