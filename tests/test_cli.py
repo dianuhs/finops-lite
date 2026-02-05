@@ -301,14 +301,31 @@ class TestConfiguration:
         assert result.exit_code == 0
         assert "Last 7 days" in result.output
 
-    def test_different_group_by(self):
-        """Test different group-by options."""
+    def test_group_by_default_service(self):
+        """Default group-by behavior should remain valid (SERVICE)."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--dry-run", "cost", "overview"])
+        assert result.exit_code == 0
+        assert "DEMO DATA" in result.output
+
+    def test_group_by_explicit_service(self):
+        """Explicit SERVICE should be accepted."""
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["--dry-run", "cost", "overview", "--group-by", "ACCOUNT"]
+            cli, ["--dry-run", "cost", "overview", "--group-by", "SERVICE"]
         )
         assert result.exit_code == 0
         assert "DEMO DATA" in result.output
+
+    def test_group_by_invalid_value_fails_fast(self):
+        """Unsupported group-by values should fail with a clear message."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["--dry-run", "cost", "overview", "--group-by", "REGION"]
+        )
+        assert result.exit_code != 0
+        assert "FinOps Lite v1.1 supports only SERVICE" in result.output
+        assert "Use --group-by SERVICE (or omit the flag)" in result.output
 
     def test_no_cache_option(self):
         """Test no-cache option."""

@@ -339,6 +339,21 @@ def _configure_output_mode(cache_manager: Optional[CacheManager], machine_mode: 
         cache_manager.set_silent(machine_mode)
 
 
+def _validate_group_by_service_only(ctx, param, value):
+    """
+    v1.1 contract: SERVICE-only grouping.
+    Fail fast on any other value to keep behavior explicit and predictable.
+    """
+    normalized = (value or "SERVICE").strip().upper()
+    if normalized != "SERVICE":
+        raise click.BadParameter(
+            f"Unsupported --group-by value '{value}'. "
+            "FinOps Lite v1.1 supports only SERVICE. "
+            "Use --group-by SERVICE (or omit the flag)."
+        )
+    return "SERVICE"
+
+
 @cli.group()
 @click.pass_context
 def cost(ctx):
@@ -357,11 +372,11 @@ def cost(ctx):
 )
 @click.option(
     "--group-by",
-    type=click.Choice(
-        ["SERVICE", "ACCOUNT", "REGION", "INSTANCE_TYPE"], case_sensitive=False
-    ),
+    type=str,
     default="SERVICE",
-    help="Group costs by dimension (currently SERVICE-level output)",
+    show_default=True,
+    callback=_validate_group_by_service_only,
+    help="Group costs by dimension (v1.1 supports SERVICE only)",
 )
 @click.option(
     "--format",

@@ -138,9 +138,9 @@ finops signals from-services --file services-rollup.csv --period "Last 30 days" 
 
 ## Current Limitation: `--group-by`
 
-`finops cost overview --group-by` currently accepts multiple values, but today the analysis and outputs are effectively SERVICE-level.
+`finops cost overview --group-by` is intentionally SERVICE-only in v1.1.
 
-For predictable results, use `--group-by SERVICE` for now. Other values are reserved for future expansion.
+Default behavior is `SERVICE`. `--group-by SERVICE` is accepted explicitly. Any other value fails fast with a clear error so behavior stays predictable.
 
 ## Selected Commands
 
