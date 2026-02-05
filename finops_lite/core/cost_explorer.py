@@ -66,17 +66,17 @@ class FocusLiteRecord:
     can be added later without changing downstream tooling.
     """
 
-    provider: str               # "aws" for now
-    service: str                # AWS service name (e.g., "Amazon EC2")
+    provider: str  # "aws" for now
+    service: str  # AWS service name (e.g., "Amazon EC2")
     resource_id: Optional[str]  # None in v1 (SERVICE-level only)
-    environment: str            # "prod", "staging", "dev", "unknown"
-    cost: Decimal               # Blended cost amount for the period
-    currency: str               # Usually "USD"
+    environment: str  # "prod", "staging", "dev", "unknown"
+    cost: Decimal  # Blended cost amount for the period
+    currency: str  # Usually "USD"
     usage_amount: Optional[Decimal]
     usage_unit: Optional[str]
     time_window_start: date
     time_window_end: date
-    allocation_method: str      # "direct", "shared", "inferred"
+    allocation_method: str  # "direct", "shared", "inferred"
     allocation_confidence: str  # "high", "medium", "low"
 
 
@@ -207,16 +207,20 @@ class CostExplorerService:
             period_end_str = time_info.get("End")
 
             try:
-                period_start = datetime.strptime(
-                    period_start_str, "%Y-%m-%d"
-                ).date() if period_start_str else start_date
+                period_start = (
+                    datetime.strptime(period_start_str, "%Y-%m-%d").date()
+                    if period_start_str
+                    else start_date
+                )
             except Exception:
                 period_start = start_date
 
             try:
-                period_end = datetime.strptime(
-                    period_end_str, "%Y-%m-%d"
-                ).date() if period_end_str else end_date
+                period_end = (
+                    datetime.strptime(period_end_str, "%Y-%m-%d").date()
+                    if period_end_str
+                    else end_date
+                )
             except Exception:
                 period_end = end_date
 
@@ -297,9 +301,9 @@ class CostExplorerService:
                     "environment": r.environment,
                     "cost": f"{r.cost:.4f}",
                     "currency": r.currency,
-                    "usage_amount": ""
-                    if r.usage_amount is None
-                    else f"{r.usage_amount:.4f}",
+                    "usage_amount": (
+                        "" if r.usage_amount is None else f"{r.usage_amount:.4f}"
+                    ),
                     "usage_unit": r.usage_unit or "",
                     "time_window_start": r.time_window_start.isoformat(),
                     "time_window_end": r.time_window_end.isoformat(),
