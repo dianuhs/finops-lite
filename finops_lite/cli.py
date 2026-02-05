@@ -338,7 +338,7 @@ def cost(ctx):
         ["SERVICE", "ACCOUNT", "REGION", "INSTANCE_TYPE"], case_sensitive=False
     ),
     default="SERVICE",
-    help="Group costs by dimension",
+    help="Group costs by dimension (currently SERVICE-level output)",
 )
 @click.option(
     "--format",

@@ -1,155 +1,164 @@
 # FinOps Lite
 
-FinOps Lite is a CLI-first cloud cost analysis engine built on AWS Cost Explorer.  
-It turns raw spend data into clear, repeatable, decision-ready signals.
+FinOps Lite is a command-line tool that reads AWS Cost Explorer data and turns it into clear cost summaries, period comparisons, exports, and lightweight decision signals.
 
-It is designed for practitioners who need to reason about cost, not just visualize it.
+## What FinOps Lite Does (Plain Language)
 
----
+- Shows AWS spend over a time window
+- Compares one period against another
+- Exports normalized CSV for downstream analysis
+- Produces simple, repeatable outputs for automation and reviews
 
-## Why FinOps Lite Exists
+## Requirements
 
-Most cloud cost tooling optimizes for dashboards.
+- Python 3.9+ (project classifiers cover 3.9-3.12)
+- AWS account with Cost Explorer enabled
+- IAM access that includes `ce:GetCostAndUsage` and `sts:GetCallerIdentity`
 
-Dashboards are good at answering what happened.  
-They are weaker when the real work starts:
+## Install
 
-- Why did spend change during this window?
-- What is the correct baseline to compare against?
-- Is this movement meaningful or just noise?
-- Can we reproduce this analysis next week, next quarter, or during an audit?
+### Option A: Install with `pipx` (recommended for CLI tools)
 
-FinOps Lite exists to close that gap.
+```bash
+pipx install "git+https://github.com/dianuhs/finops-lite.git"
+# or from a local clone:
+pipx install .
+```
 
-It produces deterministic outputs that can be inspected, exported, diffed over time, and embedded directly into workflows. Every number has an explicit window, comparison, and schema.
+### Option B: Install with `pip` in a virtual environment
 
-This is not a platform.  
-It is a foundation layer.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+pip install .
+```
 
----
+After install, the CLI entry points are `finops` and `finops-lite`:
 
-## What FinOps Lite Does (and AWS Native Tools Don’t)
+```bash
+finops --help
+```
 
-FinOps Lite does not replace AWS Cost Explorer, Budgets, or Anomaly Detection.  
-It complements them by solving a different problem.
+## AWS Credentials Setup
 
-FinOps Lite provides:
+Create and use a named AWS profile:
 
-- Explicit, documented time windows for every analysis  
-- Period-over-period comparisons as a first-class concept  
-- Stable, schema-aware outputs suitable for CI and automation  
-- Deterministic behavior that can be reproduced from the same inputs  
-- FOCUS-inspired exports designed for downstream FinOps tooling  
+```bash
+aws configure --profile finops-prod
+export AWS_PROFILE=finops-prod
+export AWS_DEFAULT_REGION=us-east-1
+```
 
-AWS native tools prioritize interactive exploration.  
-FinOps Lite prioritizes repeatable reasoning.
-
----
-
-## Core Capability: Rolling Cost Overview
-
-The most common question in FinOps is deceptively simple:
-
-“What changed, compared to what, and does it matter?”
-
-FinOps Lite answers that directly.
+Then run commands either with environment variables:
 
 ```bash
 finops cost overview --days 30
 ```
 
-### Screenshot: rolling cost overview
+Or with explicit flags:
 
-![Rolling cost overview](docs/images/cost-overview.png)
+```bash
+finops --profile finops-prod --region us-east-1 cost overview --days 30
+```
 
----
+## Quickstart
 
-## Automation-Ready Output Formats
+### 1) Cost analysis (overview/monthly/compare style)
 
-Every FinOps Lite command can emit machine-readable output.
+```bash
+finops --profile finops-prod --region us-east-1 cost compare --current 2026-01 --baseline 2025-12
+```
+
+### 2) Export FOCUS-lite CSV
+
+```bash
+finops --profile finops-prod --region us-east-1 export focus --days 30 > focus-lite.csv
+```
+
+### 3) Flow exported CSV into `signals from-services`
+
+`signals from-services` expects a service-rollup CSV shape. The sequence below converts `focus-lite.csv` into that shape, then runs signals:
+
+```bash
+python3 - <<'PY'
+import csv
+from collections import defaultdict
+
+source = "focus-lite.csv"
+target = "services-rollup.csv"
+
+totals = defaultdict(float)
+days_seen = defaultdict(set)
+
+with open(source, "r", encoding="utf-8", newline="") as f:
+    for row in csv.DictReader(f):
+        service = (row.get("service") or "Unknown").strip()
+        cost = float(row.get("cost") or 0.0)
+        totals[service] += cost
+        days_seen[service].add(row.get("time_window_start"))
+
+grand_total = sum(totals.values()) or 1.0
+
+with open(target, "w", encoding="utf-8", newline="") as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "service_name",
+            "total_cost",
+            "percentage_of_total",
+            "daily_average",
+            "trend_direction",
+            "trend_percentage",
+            "trend_amount",
+        ],
+    )
+    writer.writeheader()
+
+    for service, total in sorted(totals.items(), key=lambda kv: kv[1], reverse=True):
+        day_count = max(len(days_seen[service]), 1)
+        writer.writerow(
+            {
+                "service_name": service,
+                "total_cost": f"{total:.2f}",
+                "percentage_of_total": f"{(total / grand_total) * 100:.2f}",
+                "daily_average": f"{total / day_count:.2f}",
+                # Quickstart defaults until multi-period trend input is provided:
+                "trend_direction": "stable",
+                "trend_percentage": "0.0",
+                "trend_amount": "0.0",
+            }
+        )
+
+print(f"Wrote {target}")
+PY
+
+finops signals from-services --file services-rollup.csv --period "Last 30 days" --format table
+```
+
+## Current Limitation: `--group-by`
+
+`finops cost overview --group-by` currently accepts multiple values, but today the analysis and outputs are effectively SERVICE-level.
+
+For predictable results, use `--group-by SERVICE` for now. Other values are reserved for future expansion.
+
+## Selected Commands
+
+- `finops cost overview --days 30`
+- `finops cost monthly --month 2026-01`
+- `finops cost compare --current 2026-01 --baseline 2025-12`
+- `finops export focus --days 30 > focus-lite.csv`
+- `finops signals from-services --file services-rollup.csv --format table`
+- `finops cache stats`
+
+## Output Formats
+
+Cost commands support table, JSON, CSV, YAML, and executive text output:
 
 ```bash
 finops cost overview --days 30 --format json
+finops cost monthly --month 2026-01 --format executive
 ```
-
-The JSON output is:
-
-- Stable across runs
-- Explicit about time windows
-- Suitable for pipelines, notebooks, and audits
-
-### Screenshot: JSON output
-
-![JSON output](docs/images/json-demo.png)
-
----
-
-## Executive Summary Mode
-
-For leadership and review decks, FinOps Lite can generate a compact, human-readable summary.
-
-```bash
-finops cost overview --days 30 --format executive
-```
-
-This mode is designed to:
-
-- Surface only material changes
-- Avoid noisy deltas
-- Read cleanly in email, Slack, or a slide
-
-### Screenshot: executive summary
-
-![Executive summary](docs/images/executive-summary.png)
-
----
-
-## FOCUS-Inspired (Lite) Cost Export
-
-FinOps Lite supports a lightweight export aligned with the FinOps Open Cost and Usage Specification (FOCUS).
-
-```bash
-finops export focus --days 30
-```
-
-This makes it easier to:
-
-- Share cost data across tools
-- Normalize downstream analysis
-- Keep internal schemas consistent
-
----
-
-## Where FinOps Lite Fits
-
-FinOps Lite is intentionally narrow.
-
-It works best as:
-
-- A reasoning layer before dashboards
-- A deterministic input to automation
-- A shared reference point during reviews and postmortems
-
-It pairs naturally with:
-
-- FinOps Watchdog for baseline-aware change detection  
-- Recovery Economics for modeling the cost of failure and recovery  
-
-Together, they form a small, composable FinOps toolkit focused on decisions, not visuals.
-
----
-
-## Who This Is For
-
-- FinOps practitioners who care about correctness and traceability  
-- Cloud cost and infrastructure engineers  
-- Teams preparing for audits, reviews, or cost governance discussions  
-- Anyone translating between finance, engineering, and leadership  
-
-FinOps Lite favors clarity over coverage.  
-It is designed to be read, trusted, and reused.
-
----
 
 ## License
 
