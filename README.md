@@ -2,7 +2,7 @@
 
 FinOps Lite is a command-line tool that reads AWS Cost Explorer data and turns it into clear cost summaries, period comparisons, exports, and lightweight decision signals.
 
-## What FinOps Lite Does (Plain Language)
+## What FinOps Lite Does
 
 - Shows AWS spend over a time window
 - Compares one period against another
