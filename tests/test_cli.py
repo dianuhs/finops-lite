@@ -3,6 +3,7 @@ Tests for FinOps Lite CLI functionality.
 Updated to match enhanced error handling and new features.
 """
 
+import os
 import pytest
 from click.testing import CliRunner
 
@@ -45,6 +46,7 @@ class TestCostOverview:
         runner = CliRunner()
         result = runner.invoke(cli, ["--dry-run", "cost", "overview"])
         assert result.exit_code == 0
+        assert "Dry-run mode: showing demo data" in result.output
         assert "DEMO DATA" in result.output
         assert "Amazon EC2" in result.output
 
@@ -55,7 +57,9 @@ class TestCostOverview:
             cli, ["--dry-run", "--output-format", "json", "cost", "overview"]
         )
         assert result.exit_code == 0
-        assert "Generating JSON format" in result.output
+        assert '"finops_lite_report"' in result.output
+        assert "Generating JSON format" not in result.output
+        assert "Dry-run mode" not in result.output
 
     def test_dry_run_cost_overview_csv(self):
         """Test dry-run cost overview with CSV format."""
@@ -64,7 +68,10 @@ class TestCostOverview:
             cli, ["--dry-run", "--output-format", "csv", "cost", "overview"]
         )
         assert result.exit_code == 0
-        assert "Generating CSV format" in result.output
+        lines = [line for line in result.output.splitlines() if line.strip()]
+        assert lines[0] == "FinOps Lite Cost Overview Report"
+        assert "Generating CSV format" not in result.output
+        assert "Dry-run mode" not in result.output
 
     def test_dry_run_cost_overview_yaml(self):
         """Test dry-run cost overview with YAML format."""
@@ -73,7 +80,9 @@ class TestCostOverview:
             cli, ["--dry-run", "--output-format", "yaml", "cost", "overview"]
         )
         assert result.exit_code == 0
-        assert "Generating YAML format" in result.output
+        assert "finops_lite_report:" in result.output
+        assert "Generating YAML format" not in result.output
+        assert "Dry-run mode" not in result.output
 
     def test_dry_run_cost_overview_executive(self):
         """Test dry-run cost overview with executive format."""
@@ -82,7 +91,95 @@ class TestCostOverview:
             cli, ["--dry-run", "--output-format", "executive", "cost", "overview"]
         )
         assert result.exit_code == 0
-        assert "Generating EXECUTIVE format" in result.output
+        assert "FINOPS LITE - EXECUTIVE COST SUMMARY" in result.output
+        assert "Generating EXECUTIVE format" not in result.output
+        assert "Dry-run mode" not in result.output
+
+    def test_cost_overview_csv_payload_only_non_dry_run(self, monkeypatch):
+        """CSV mode should emit only payload text (no banners/cache chatter)."""
+        import finops_lite.cli as cli_module
+        import finops_lite.core.cost_explorer as cost_explorer_module
+
+        monkeypatch.setattr(
+            cli_module,
+            "_test_aws_connectivity",
+            lambda *args, **kwargs: {
+                "account_id": "123456789012",
+                "user_arn": "arn:aws:iam::123456789012:user/test",
+                "region": "us-east-1",
+                "cost_explorer_status": "available",
+            },
+        )
+
+        sample_analysis = {
+            "report_type": "cost_overview",
+            "period_days": 30,
+            "total_cost": 300.0,
+            "daily_average": 10.0,
+            "trend": {
+                "trend_direction": "up",
+                "change_percentage": 5.0,
+                "change_amount": 15.0,
+                "current_period_cost": 300.0,
+                "previous_period_cost": 285.0,
+            },
+            "service_breakdown": [
+                {
+                    "service_name": "Amazon EC2",
+                    "total_cost": 180.0,
+                    "percentage_of_total": 60.0,
+                    "daily_average": 6.0,
+                    "trend": {
+                        "trend_direction": "up",
+                        "change_percentage": 4.0,
+                        "change_amount": 6.9,
+                    },
+                    "top_usage_types": [],
+                },
+                {
+                    "service_name": "Amazon S3",
+                    "total_cost": 120.0,
+                    "percentage_of_total": 40.0,
+                    "daily_average": 4.0,
+                    "trend": {
+                        "trend_direction": "stable",
+                        "change_percentage": 0.0,
+                        "change_amount": 0.0,
+                    },
+                    "top_usage_types": [],
+                },
+            ],
+            "currency": "USD",
+        }
+
+        class FakeCostExplorerService:
+            def __init__(self, config):
+                self.config = config
+
+            def get_monthly_cost_overview(self, days):
+                return sample_analysis
+
+        monkeypatch.setattr(
+            cost_explorer_module, "CostExplorerService", FakeCostExplorerService
+        )
+
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            env = {"HOME": os.getcwd()}
+            result = runner.invoke(
+                cli,
+                ["--output-format", "csv", "cost", "overview", "--days", "30"],
+                env=env,
+            )
+
+        assert result.exit_code == 0
+        lines = [line for line in result.output.splitlines() if line.strip()]
+        assert lines[0] == "FinOps Lite Cost Overview Report"
+        assert "Cached result" not in result.output
+        assert "Cache hit" not in result.output
+        assert "Testing AWS connectivity" not in result.output
+        assert "Fetching cost data" not in result.output
+        assert "Dry-run mode" not in result.output
 
 
 class TestCacheCommands:
@@ -195,7 +292,7 @@ class TestConfiguration:
             cli, ["--dry-run", "--output-format", "json", "cost", "overview"]
         )
         assert result.exit_code == 0
-        assert "JSON format" in result.output
+        assert '"finops_lite_report"' in result.output
 
     def test_different_days_parameter(self):
         """Test different days parameter values."""

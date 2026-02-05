@@ -55,17 +55,24 @@ class CacheEntry:
 class CacheManager:
     """Manages caching for API responses and expensive operations."""
 
-    def __init__(self, cache_dir: Optional[Path] = None, max_cache_size_mb: int = 50):
+    def __init__(
+        self,
+        cache_dir: Optional[Path] = None,
+        max_cache_size_mb: int = 50,
+        silent: bool = False,
+    ):
         """
         Initialize cache manager.
 
         Args:
             cache_dir: Directory for cache files (default: ~/.finops/cache)
             max_cache_size_mb: Maximum cache size in MB
+            silent: Suppress user-facing cache chatter when True
         """
         self.cache_dir = cache_dir or Path.home() / ".finops" / "cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.max_cache_size_mb = max_cache_size_mb
+        self.silent = silent
         self.cache_file = self.cache_dir / "api_cache.json"
 
         # Default TTL values for different types of data
@@ -89,6 +96,15 @@ class CacheManager:
             "cost_savings": 0.0,
             "total_cache_operations": 0,
         }
+
+    def set_silent(self, silent: bool) -> None:
+        """Enable/disable user-facing cache messages."""
+        self.silent = silent
+
+    def _emit(self, message: str) -> None:
+        """Print cache messages unless silent mode is enabled."""
+        if not self.silent:
+            console.print(message)
 
     def _generate_key(self, operation: str, **kwargs) -> str:
         """Generate a unique cache key based on operation and parameters."""
@@ -120,7 +136,7 @@ class CacheManager:
                 return cache
 
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not load cache: {e}[/yellow]")
+            self._emit(f"[yellow]Warning: Could not load cache: {e}[/yellow]")
 
         return {}
 
@@ -140,7 +156,7 @@ class CacheManager:
                 json.dump(cache_data, f, indent=2)
 
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not save cache: {e}[/yellow]")
+            self._emit(f"[yellow]Warning: Could not save cache: {e}[/yellow]")
 
     def _clean_expired_entries(self, cache: Dict[str, CacheEntry]):
         """Remove expired entries from cache."""
@@ -150,7 +166,7 @@ class CacheManager:
             del cache[key]
 
         if expired_keys:
-            console.print(
+            self._emit(
                 f"[dim]Cleaned {len(expired_keys)} expired cache entries[/dim]"
             )
 
@@ -167,7 +183,7 @@ class CacheManager:
             for key, _ in sorted_entries[:remove_count]:
                 del cache_data[key]
 
-            console.print(
+            self._emit(
                 f"[dim]Cache size limit reached. Removed {remove_count} oldest entries[/dim]"
             )
 
@@ -196,14 +212,14 @@ class CacheManager:
                 self.metrics["api_calls_saved"] += 1
                 self.metrics["cost_savings"] += entry.api_call_cost
 
-                console.print(
+                self._emit(
                     f"[green]💾 Cache hit[/green] [dim]({entry.age_minutes:.1f}m old)[/dim]"
                 )
                 return entry.data
             else:
                 # Remove expired entry
                 del self._cache[key]
-                console.print(
+                self._emit(
                     f"[yellow]🕐 Cache expired[/yellow] [dim]({entry.age_minutes:.1f}m old)[/dim]"
                 )
 
@@ -232,7 +248,7 @@ class CacheManager:
         )
 
         self._cache[key] = entry
-        console.print(f"[blue]💾 Cached result[/blue] [dim](TTL: {ttl//60}m)[/dim]")
+        self._emit(f"[blue]💾 Cached result[/blue] [dim](TTL: {ttl//60}m)[/dim]")
 
         # Save to disk periodically
         if len(self._cache) % 10 == 0:  # Save every 10 operations
@@ -250,12 +266,12 @@ class CacheManager:
             key = self._generate_key(operation, **kwargs)
             if key in self._cache:
                 del self._cache[key]
-                console.print(f"[yellow]🗑️  Invalidated cache for {operation}[/yellow]")
+                self._emit(f"[yellow]🗑️  Invalidated cache for {operation}[/yellow]")
         else:
             # Invalidate all
             count = len(self._cache)
             self._cache.clear()
-            console.print(f"[yellow]🗑️  Cleared all cache ({count} entries)[/yellow]")
+            self._emit(f"[yellow]🗑️  Cleared all cache ({count} entries)[/yellow]")
 
         self._save_cache()
 

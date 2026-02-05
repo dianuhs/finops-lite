@@ -380,7 +380,11 @@ class ReportFormatter:
         return "\n".join(lines) + "\n"
 
     def save_report(
-        self, content: str, filename: Optional[str] = None, format_type: str = "json"
+        self,
+        content: str,
+        filename: Optional[str] = None,
+        format_type: str = "json",
+        announce: bool = True,
     ) -> Path:
         """Save report to file."""
         if not filename:
@@ -395,5 +399,6 @@ class ReportFormatter:
         with open(file_path, "w") as f:
             f.write(content)
 
-        self.console.print(f"[green]Report saved to: {file_path}[/green]")
+        if announce:
+            self.console.print(f"[green]Report saved to: {file_path}[/green]")
         return file_path

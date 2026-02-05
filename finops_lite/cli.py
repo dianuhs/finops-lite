@@ -49,6 +49,7 @@ from .utils.performance import (
 )
 
 console = Console()
+MACHINE_OUTPUT_FORMATS = {"json", "csv", "yaml", "executive"}
 
 
 class FinOpsContext:
@@ -224,7 +225,10 @@ cli.add_command(optimize)
 @aws_error_mapper
 @retry_with_backoff(max_retries=2, base_delay=1.0, exceptions=(NetworkTimeoutError,))
 def _test_aws_connectivity(
-    config: FinOpsConfig, logger, cache_manager: Optional[CacheManager] = None
+    config: FinOpsConfig,
+    logger,
+    cache_manager: Optional[CacheManager] = None,
+    show_status: bool = True,
 ):
     cache_key_params = {"profile": config.aws.profile, "region": config.aws.region}
 
@@ -235,7 +239,7 @@ def _test_aws_connectivity(
         if cached_result:
             return cached_result
 
-    with show_spinner("Testing AWS connectivity..."):
+    def _run_connectivity_checks():
         session = config.get_boto3_session()
         sts = session.client("sts")
         identity = sts.get_caller_identity()
@@ -275,7 +279,15 @@ def _test_aws_connectivity(
                 "aws_connectivity_test", result, "account_info", **cache_key_params
             )
 
-    if config.output.verbose:
+        return result
+
+    if show_status:
+        with show_spinner("Testing AWS connectivity..."):
+            result = _run_connectivity_checks()
+    else:
+        result = _run_connectivity_checks()
+
+    if config.output.verbose and show_status:
         table = Table(title="AWS Connection Info")
         table.add_column("Property", style="cyan")
         table.add_column("Value", style="green")
@@ -314,6 +326,17 @@ def _parse_yyyymm(value: str) -> Tuple[int, int]:
         return year, month
     except Exception:
         raise ValidationError("Month must be in YYYY-MM format (example: 2026-01)")
+
+
+def _is_machine_output(format_name: Optional[str]) -> bool:
+    """Return True when output is intended for machine consumption."""
+    return (format_name or "table").lower() in MACHINE_OUTPUT_FORMATS
+
+
+def _configure_output_mode(cache_manager: Optional[CacheManager], machine_mode: bool):
+    """Align cache chatter with output mode."""
+    if cache_manager:
+        cache_manager.set_silent(machine_mode)
 
 
 @cli.group()
@@ -362,6 +385,7 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
     dry_run = ctx.obj.dry_run
     cache_manager = ctx.obj.cache_manager
     performance_tracker = ctx.obj.performance_tracker
+    machine_mode = False
 
     if performance_tracker:
         performance_tracker.start_operation("cost_overview")
@@ -370,14 +394,14 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
         if output_format:
             config.output.format = output_format
 
+        machine_mode = _is_machine_output(config.output.format)
+        _configure_output_mode(cache_manager, machine_mode)
+
         if dry_run:
             fmt = (config.output.format or "table").lower()
 
             # In dry-run, we still honor non-table formats for tests + UX.
             if fmt != "table":
-                console.print(
-                    f"[yellow]Generating {fmt.upper()} format (demo data)...[/yellow]"
-                )
                 formatter = ReportFormatter(config, console)
 
                 demo_data = {
@@ -425,7 +449,9 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
             _display_cost_overview_demo(days)
             return
 
-        _ = _test_aws_connectivity(config, logger, cache_manager)
+        _ = _test_aws_connectivity(
+            config, logger, cache_manager, show_status=not machine_mode
+        )
 
         cache_key_params = {
             "kind": "rolling_days",
@@ -444,29 +470,41 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                 performance_tracker.record_cache_hit()
 
         if not cost_analysis:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task("Fetching cost data...", total=None)
+            from .core.cost_explorer import CostExplorerService
 
-                from .core.cost_explorer import CostExplorerService
+            cost_service = CostExplorerService(config)
 
-                cost_service = CostExplorerService(config)
-
-                progress.update(task, description="Analyzing costs...")
+            if machine_mode:
                 cost_analysis = _get_cost_data_with_retry(cost_service, days)
-
                 if performance_tracker:
                     performance_tracker.record_api_call()
-
                 if cache_manager:
                     cache_manager.set(
                         "cost_overview", cost_analysis, "cost_data", **cache_key_params
                     )
+            else:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    task = progress.add_task("Fetching cost data...", total=None)
 
-                progress.update(task, description="Formatting results...")
+                    progress.update(task, description="Analyzing costs...")
+                    cost_analysis = _get_cost_data_with_retry(cost_service, days)
+
+                    if performance_tracker:
+                        performance_tracker.record_api_call()
+
+                    if cache_manager:
+                        cache_manager.set(
+                            "cost_overview",
+                            cost_analysis,
+                            "cost_data",
+                            **cache_key_params,
+                        )
+
+                    progress.update(task, description="Formatting results...")
 
         _render_cost_output(config, cost_analysis, group_by)
 
@@ -476,8 +514,14 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
                 cost_analysis, config.output.format
             )
             if content:
-                formatter.save_report(content, export_file, config.output.format)
-                console.print(f"[green]Report exported to: {export_file}[/green]")
+                formatter.save_report(
+                    content,
+                    export_file,
+                    config.output.format,
+                    announce=not machine_mode,
+                )
+                if not machine_mode:
+                    console.print(f"[green]Report exported to: {export_file}[/green]")
 
     except (
         CostExplorerNotEnabledError,
@@ -500,7 +544,8 @@ def cost_overview(ctx, days, group_by, output_format, export_file, force_refresh
     finally:
         if performance_tracker:
             performance_tracker.finish_current_operation()
-            performance_tracker.show_summary(verbose=config.output.verbose)
+            if not machine_mode:
+                performance_tracker.show_summary(verbose=config.output.verbose)
 
 
 @cost.command("monthly")
@@ -532,6 +577,7 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
     dry_run = ctx.obj.dry_run
     cache_manager = ctx.obj.cache_manager
     performance_tracker = ctx.obj.performance_tracker
+    machine_mode = False
 
     if performance_tracker:
         performance_tracker.start_operation("cost_monthly")
@@ -540,6 +586,9 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
         if output_format:
             config.output.format = output_format
 
+        machine_mode = _is_machine_output(config.output.format)
+        _configure_output_mode(cache_manager, machine_mode)
+
         year, month = _parse_yyyymm(month_str)
 
         if dry_run:
@@ -547,7 +596,9 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
             _display_cost_overview_demo(30)
             return
 
-        _ = _test_aws_connectivity(config, logger, cache_manager)
+        _ = _test_aws_connectivity(
+            config, logger, cache_manager, show_status=not machine_mode
+        )
 
         cache_key_params = {
             "kind": "calendar_month",
@@ -565,31 +616,40 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
                 performance_tracker.record_cache_hit()
 
         if not analysis:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task("Fetching monthly cost data...", total=None)
+            from .core.cost_explorer import CostExplorerService
 
-                from .core.cost_explorer import CostExplorerService
+            svc = CostExplorerService(config)
 
-                svc = CostExplorerService(config)
-
-                progress.update(
-                    task, description=f"Analyzing {year:04d}-{month:02d}..."
-                )
+            if machine_mode:
                 analysis = svc.get_month_cost_overview(year, month)
-
                 if performance_tracker:
                     performance_tracker.record_api_call()
-
                 if cache_manager:
                     cache_manager.set(
                         "cost_monthly", analysis, "cost_data", **cache_key_params
                     )
+            else:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    task = progress.add_task("Fetching monthly cost data...", total=None)
 
-                progress.update(task, description="Formatting results...")
+                    progress.update(
+                        task, description=f"Analyzing {year:04d}-{month:02d}..."
+                    )
+                    analysis = svc.get_month_cost_overview(year, month)
+
+                    if performance_tracker:
+                        performance_tracker.record_api_call()
+
+                    if cache_manager:
+                        cache_manager.set(
+                            "cost_monthly", analysis, "cost_data", **cache_key_params
+                        )
+
+                    progress.update(task, description="Formatting results...")
 
         _render_cost_output(config, analysis, group_by="SERVICE")
 
@@ -597,8 +657,14 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
             formatter = ReportFormatter(config, console)
             content = formatter.format_cost_overview(analysis, config.output.format)
             if content:
-                formatter.save_report(content, export_file, config.output.format)
-                console.print(f"[green]Report exported to: {export_file}[/green]")
+                formatter.save_report(
+                    content,
+                    export_file,
+                    config.output.format,
+                    announce=not machine_mode,
+                )
+                if not machine_mode:
+                    console.print(f"[green]Report exported to: {export_file}[/green]")
 
     except Exception as e:
         if performance_tracker:
@@ -608,7 +674,8 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
     finally:
         if performance_tracker:
             performance_tracker.finish_current_operation()
-            performance_tracker.show_summary(verbose=config.output.verbose)
+            if not machine_mode:
+                performance_tracker.show_summary(verbose=config.output.verbose)
 
 
 @cost.command("compare")
@@ -648,6 +715,7 @@ def cost_compare(
     dry_run = ctx.obj.dry_run
     cache_manager = ctx.obj.cache_manager
     performance_tracker = ctx.obj.performance_tracker
+    machine_mode = False
 
     if performance_tracker:
         performance_tracker.start_operation("cost_compare")
@@ -655,6 +723,9 @@ def cost_compare(
     try:
         if output_format:
             config.output.format = output_format
+
+        machine_mode = _is_machine_output(config.output.format)
+        _configure_output_mode(cache_manager, machine_mode)
 
         cy, cm = _parse_yyyymm(current_month)
         by, bm = _parse_yyyymm(baseline_month)
@@ -664,7 +735,9 @@ def cost_compare(
             _display_cost_overview_demo(30)
             return
 
-        _ = _test_aws_connectivity(config, logger, cache_manager)
+        _ = _test_aws_connectivity(
+            config, logger, cache_manager, show_status=not machine_mode
+        )
 
         cache_key_params = {
             "kind": "compare_months",
@@ -683,32 +756,41 @@ def cost_compare(
                 performance_tracker.record_cache_hit()
 
         if not analysis:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
-                task = progress.add_task("Fetching comparison data...", total=None)
+            from .core.cost_explorer import CostExplorerService
 
-                from .core.cost_explorer import CostExplorerService
+            svc = CostExplorerService(config)
 
-                svc = CostExplorerService(config)
-
-                progress.update(
-                    task,
-                    description=f"Comparing {cy:04d}-{cm:02d} vs {by:04d}-{bm:02d}...",
-                )
+            if machine_mode:
                 analysis = svc.compare_months(cy, cm, by, bm)
-
                 if performance_tracker:
                     performance_tracker.record_api_call()
-
                 if cache_manager:
                     cache_manager.set(
                         "cost_compare", analysis, "cost_data", **cache_key_params
                     )
+            else:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    task = progress.add_task("Fetching comparison data...", total=None)
 
-                progress.update(task, description="Rendering results...")
+                    progress.update(
+                        task,
+                        description=f"Comparing {cy:04d}-{cm:02d} vs {by:04d}-{bm:02d}...",
+                    )
+                    analysis = svc.compare_months(cy, cm, by, bm)
+
+                    if performance_tracker:
+                        performance_tracker.record_api_call()
+
+                    if cache_manager:
+                        cache_manager.set(
+                            "cost_compare", analysis, "cost_data", **cache_key_params
+                        )
+
+                    progress.update(task, description="Rendering results...")
 
         if (config.output.format or "table").lower() == "table":
             _display_month_compare_table(config, analysis)
@@ -722,8 +804,14 @@ def cost_compare(
             formatter = ReportFormatter(config, console)
             content = formatter.format_cost_overview(analysis, config.output.format)
             if content:
-                formatter.save_report(content, export_file, config.output.format)
-                console.print(f"[green]Report exported to: {export_file}[/green]")
+                formatter.save_report(
+                    content,
+                    export_file,
+                    config.output.format,
+                    announce=not machine_mode,
+                )
+                if not machine_mode:
+                    console.print(f"[green]Report exported to: {export_file}[/green]")
 
     except Exception as e:
         if performance_tracker:
@@ -733,7 +821,8 @@ def cost_compare(
     finally:
         if performance_tracker:
             performance_tracker.finish_current_operation()
-            performance_tracker.show_summary(verbose=config.output.verbose)
+            if not machine_mode:
+                performance_tracker.show_summary(verbose=config.output.verbose)
 
 
 @aws_error_mapper
@@ -957,6 +1046,9 @@ def export_focus(ctx, days):
     dry_run = ctx.obj.dry_run
     cache_manager = ctx.obj.cache_manager
     performance_tracker = ctx.obj.performance_tracker
+    machine_mode = True
+
+    _configure_output_mode(cache_manager, machine_mode)
 
     if performance_tracker:
         performance_tracker.start_operation("export_focus")
@@ -969,7 +1061,9 @@ def export_focus(ctx, days):
             )
             return
 
-        _ = _test_aws_connectivity(config, logger, cache_manager)
+        _ = _test_aws_connectivity(
+            config, logger, cache_manager, show_status=not machine_mode
+        )
 
         from .core.cost_explorer import CostExplorerService
 
@@ -998,7 +1092,8 @@ def export_focus(ctx, days):
     finally:
         if performance_tracker:
             performance_tracker.finish_current_operation()
-            performance_tracker.show_summary(verbose=config.output.verbose)
+            if not machine_mode:
+                performance_tracker.show_summary(verbose=config.output.verbose)
 
 
 @cli.group()
