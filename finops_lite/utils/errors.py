@@ -22,6 +22,7 @@ try:
         ReadTimeoutError,
     )
 except Exception:  # pragma: no cover - botocore should be present in runtime deps
+
     class BotoCoreError(Exception):
         pass
 
@@ -42,6 +43,7 @@ except Exception:  # pragma: no cover - botocore should be present in runtime de
 
     class ReadTimeoutError(Exception):
         pass
+
 
 console = Console()
 
