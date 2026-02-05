@@ -166,9 +166,7 @@ class CacheManager:
             del cache[key]
 
         if expired_keys:
-            self._emit(
-                f"[dim]Cleaned {len(expired_keys)} expired cache entries[/dim]"
-            )
+            self._emit(f"[dim]Cleaned {len(expired_keys)} expired cache entries[/dim]")
 
     def _manage_cache_size(self, cache_data: Dict):
         """Manage cache size by removing oldest entries if needed."""

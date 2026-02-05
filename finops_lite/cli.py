@@ -634,7 +634,9 @@ def cost_monthly(ctx, month_str, output_format, export_file, force_refresh):
                     TextColumn("[progress.description]{task.description}"),
                     console=console,
                 ) as progress:
-                    task = progress.add_task("Fetching monthly cost data...", total=None)
+                    task = progress.add_task(
+                        "Fetching monthly cost data...", total=None
+                    )
 
                     progress.update(
                         task, description=f"Analyzing {year:04d}-{month:02d}..."
