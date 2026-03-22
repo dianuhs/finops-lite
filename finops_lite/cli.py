@@ -346,7 +346,9 @@ def _parse_yyyy_mm_dd(value: str) -> date:
     try:
         return datetime.strptime(value.strip(), "%Y-%m-%d").date()
     except Exception:
-        raise click.BadParameter("Date must be in YYYY-MM-DD format (example: 2026-01-31)")
+        raise click.BadParameter(
+            "Date must be in YYYY-MM-DD format (example: 2026-01-31)"
+        )
 
 
 def _validate_group_by_service_only(ctx, param, value):
@@ -1071,9 +1073,7 @@ def run_summarize(
     prev_start_dt = datetime.combine(prev_start, datetime.min.time())
     prev_end_dt = datetime.combine(prev_end + timedelta(days=1), datetime.min.time())
 
-    _ = _test_aws_connectivity(
-        config, logger, cache_manager, show_status=False
-    )
+    _ = _test_aws_connectivity(config, logger, cache_manager, show_status=False)
 
     cache_key_params = {
         "kind": "summary",
@@ -1204,6 +1204,7 @@ def summarize(ctx, start, end, group_by):
     finally:
         if performance_tracker:
             performance_tracker.finish_current_operation()
+
 
 @cli.group()
 @click.pass_context
