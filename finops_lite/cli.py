@@ -24,8 +24,8 @@ from rich.prompt import Confirm
 from rich.table import Table
 
 from .reports.formatters import ReportFormatter
-from .summary import build_cost_summary
 from .signals.cli import signals
+from .summary import build_cost_summary
 from .utils.config import FinOpsConfig, load_config
 from .utils.errors import (
     APIRateLimitError,
