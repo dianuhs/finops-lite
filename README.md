@@ -160,6 +160,10 @@ finops cost overview --days 30 --format json
 finops cost monthly --month 2026-01 --format executive
 ```
 
+## SQL Analysis
+
+For a portfolio-facing SQL view of the same cost domain, see [`sql-analysis/`](sql-analysis/). It includes a compact cloud cost dataset, a portable schema, and analyst-style queries for service mix, spend trends, anomaly review, and period-over-period comparison.
+
 ## License
 
 MIT

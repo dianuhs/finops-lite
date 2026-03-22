@@ -10,8 +10,9 @@ Upgrades in this version:
 - Adds `finops export focus` for FOCUS-lite CSV export
 """
 
+import json
 import sys
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -23,6 +24,7 @@ from rich.prompt import Confirm
 from rich.table import Table
 
 from .reports.formatters import ReportFormatter
+from .summary import build_cost_summary
 from .signals.cli import signals
 from .utils.config import FinOpsConfig, load_config
 from .utils.errors import (
@@ -337,6 +339,14 @@ def _configure_output_mode(cache_manager: Optional[CacheManager], machine_mode: 
     """Align cache chatter with output mode."""
     if cache_manager:
         cache_manager.set_silent(machine_mode)
+
+
+def _parse_yyyy_mm_dd(value: str) -> date:
+    """Parse YYYY-MM-DD into a date."""
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    except Exception:
+        raise click.BadParameter("Date must be in YYYY-MM-DD format (example: 2026-01-31)")
 
 
 def _validate_group_by_service_only(ctx, param, value):
@@ -1038,6 +1048,162 @@ def _display_month_compare_table(config: FinOpsConfig, analysis: dict):
 
     console.print(table)
 
+
+def run_summarize(
+    config: FinOpsConfig,
+    start_date: date,
+    end_date: date,
+    group_by: str,
+    *,
+    cache_manager: Optional[CacheManager] = None,
+    performance_tracker: Optional[PerformanceTracker] = None,
+    logger=None,
+) -> dict:
+    """
+    Build a compact cost baseline summary dict for the given window.
+    """
+    days = (end_date - start_date).days + 1
+    prev_end = start_date - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=days - 1)
+
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date + timedelta(days=1), datetime.min.time())
+    prev_start_dt = datetime.combine(prev_start, datetime.min.time())
+    prev_end_dt = datetime.combine(prev_end + timedelta(days=1), datetime.min.time())
+
+    _ = _test_aws_connectivity(
+        config, logger, cache_manager, show_status=False
+    )
+
+    cache_key_params = {
+        "kind": "summary",
+        "start": start_date.isoformat(),
+        "end": end_date.isoformat(),
+        "group_by": group_by,
+        "profile": config.aws.profile,
+        "region": config.aws.region,
+    }
+
+    summary = None
+    if cache_manager:
+        summary = cache_manager.get("summary", "summary_data", **cache_key_params)
+        if summary and performance_tracker:
+            performance_tracker.record_cache_hit()
+
+    if not summary:
+        from .core.cost_explorer import CostExplorerService
+
+        svc = CostExplorerService(config)
+        current_data = svc.get_cost_and_usage(
+            start_dt,
+            end_dt,
+            granularity="DAILY",
+            group_by=[group_by],
+            metrics=["BlendedCost"],
+        )
+        if performance_tracker:
+            performance_tracker.record_api_call()
+
+        previous_data = svc.get_cost_and_usage(
+            prev_start_dt,
+            prev_end_dt,
+            granularity="DAILY",
+            group_by=[group_by],
+            metrics=["BlendedCost"],
+        )
+        if performance_tracker:
+            performance_tracker.record_api_call()
+
+        summary = build_cost_summary(
+            current_data,
+            previous_data,
+            group_by=group_by,
+            window_start=start_date,
+            window_end=end_date,
+        )
+
+        if cache_manager:
+            cache_manager.set("summary", summary, "summary_data", **cache_key_params)
+
+    return summary
+
+
+@cli.command("summarize")
+@click.option(
+    "--start",
+    required=True,
+    callback=lambda ctx, param, value: _parse_yyyy_mm_dd(value),
+    help="Start date (YYYY-MM-DD)",
+)
+@click.option(
+    "--end",
+    required=True,
+    callback=lambda ctx, param, value: _parse_yyyy_mm_dd(value),
+    help="End date (YYYY-MM-DD)",
+)
+@click.option(
+    "--group-by",
+    default="SERVICE",
+    show_default=True,
+    callback=_validate_group_by_service_only,
+    help="Group costs by dimension (v1.1 supports SERVICE only)",
+)
+@click.pass_context
+def summarize(ctx, start, end, group_by):
+    """Emit a compact JSON cost baseline snapshot for dashboards."""
+    config = ctx.obj.config
+    logger = ctx.obj.logger
+    cache_manager = ctx.obj.cache_manager
+    performance_tracker = ctx.obj.performance_tracker
+    machine_mode = True
+
+    _configure_output_mode(cache_manager, machine_mode)
+
+    if config.output.format and (config.output.format or "").lower() != "json":
+        raise ValidationError("summarize outputs JSON only (use --output-format json)")
+    config.output.format = "json"
+
+    start_date = start
+    end_date = end
+    if end_date < start_date:
+        raise click.BadParameter("End date must be on or after start date.")
+
+    if performance_tracker:
+        performance_tracker.start_operation("summarize")
+
+    try:
+        summary = run_summarize(
+            config,
+            start_date,
+            end_date,
+            group_by,
+            cache_manager=cache_manager,
+            performance_tracker=performance_tracker,
+            logger=logger,
+        )
+        print(json.dumps(summary, indent=2))
+
+    except (
+        CostExplorerNotEnabledError,
+        CostExplorerWarmingUpError,
+        AWSCredentialsError,
+        AWSPermissionError,
+        APIRateLimitError,
+        NetworkTimeoutError,
+        ValidationError,
+    ) as e:
+        if performance_tracker:
+            performance_tracker.record_error()
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
+    except Exception as e:
+        if performance_tracker:
+            performance_tracker.record_error()
+        handle_error(e, config.output.verbose)
+        sys.exit(1)
+    finally:
+        if performance_tracker:
+            performance_tracker.finish_current_operation()
 
 @cli.group()
 @click.pass_context

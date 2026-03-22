@@ -1,0 +1,51 @@
+usage_date,account_id,account_name,environment,service,region,usage_quantity,usage_unit,blended_cost,currency,owner_team,cost_center
+2026-01-27,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,720,Instance-Hours,2680.00,USD,Platform Engineering,Engineering
+2026-01-27,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,96,Instance-Hours,980.00,USD,Data Platform,Engineering
+2026-01-27,222222222222,data-platform-prod,production,AmazonS3,us-west-2,18400,GB,690.00,USD,Data Platform,Analytics
+2026-01-27,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,2400000,Requests,118.00,USD,Application Engineering,Engineering
+2026-01-27,111111111111,core-platform-prod,production,CloudWatch,us-east-1,820,GB-Logs,185.00,USD,Platform Engineering,Shared Services
+2026-01-28,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,710,Instance-Hours,2715.00,USD,Platform Engineering,Engineering
+2026-01-28,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,97,Instance-Hours,985.00,USD,Data Platform,Engineering
+2026-01-28,222222222222,data-platform-prod,production,AmazonS3,us-west-2,18600,GB,698.00,USD,Data Platform,Analytics
+2026-01-28,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,2550000,Requests,121.00,USD,Application Engineering,Engineering
+2026-01-28,111111111111,core-platform-prod,production,CloudWatch,us-east-1,840,GB-Logs,188.00,USD,Platform Engineering,Shared Services
+2026-01-29,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,725,Instance-Hours,2698.00,USD,Platform Engineering,Engineering
+2026-01-29,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,97,Instance-Hours,990.00,USD,Data Platform,Engineering
+2026-01-29,222222222222,data-platform-prod,production,AmazonS3,us-west-2,19000,GB,705.00,USD,Data Platform,Analytics
+2026-01-29,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,2500000,Requests,119.00,USD,Application Engineering,Engineering
+2026-01-29,111111111111,core-platform-prod,production,CloudWatch,us-east-1,860,GB-Logs,192.00,USD,Platform Engineering,Shared Services
+2026-01-30,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,718,Instance-Hours,2742.00,USD,Platform Engineering,Engineering
+2026-01-30,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,98,Instance-Hours,995.00,USD,Data Platform,Engineering
+2026-01-30,222222222222,data-platform-prod,production,AmazonS3,us-west-2,19300,GB,720.00,USD,Data Platform,Analytics
+2026-01-30,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,2650000,Requests,126.00,USD,Application Engineering,Engineering
+2026-01-30,111111111111,core-platform-prod,production,CloudWatch,us-east-1,900,GB-Logs,205.00,USD,Platform Engineering,Shared Services
+2026-01-31,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,730,Instance-Hours,2760.00,USD,Platform Engineering,Engineering
+2026-01-31,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,98,Instance-Hours,1002.00,USD,Data Platform,Engineering
+2026-01-31,222222222222,data-platform-prod,production,AmazonS3,us-west-2,19500,GB,728.00,USD,Data Platform,Analytics
+2026-01-31,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,2720000,Requests,129.00,USD,Application Engineering,Engineering
+2026-01-31,111111111111,core-platform-prod,production,CloudWatch,us-east-1,920,GB-Logs,212.00,USD,Platform Engineering,Shared Services
+2026-02-01,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,735,Instance-Hours,2785.00,USD,Platform Engineering,Engineering
+2026-02-01,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,98,Instance-Hours,1005.00,USD,Data Platform,Engineering
+2026-02-01,222222222222,data-platform-prod,production,AmazonS3,us-west-2,19750,GB,735.00,USD,Data Platform,Analytics
+2026-02-01,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,2780000,Requests,132.00,USD,Application Engineering,Engineering
+2026-02-01,111111111111,core-platform-prod,production,CloudWatch,us-east-1,940,GB-Logs,218.00,USD,Platform Engineering,Shared Services
+2026-02-02,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,742,Instance-Hours,2810.00,USD,Platform Engineering,Engineering
+2026-02-02,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,99,Instance-Hours,1012.00,USD,Data Platform,Engineering
+2026-02-02,222222222222,data-platform-prod,production,AmazonS3,us-west-2,19900,GB,742.00,USD,Data Platform,Analytics
+2026-02-02,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,2850000,Requests,136.00,USD,Application Engineering,Engineering
+2026-02-02,111111111111,core-platform-prod,production,CloudWatch,us-east-1,955,GB-Logs,221.00,USD,Platform Engineering,Shared Services
+2026-02-03,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,960,Instance-Hours,4210.00,USD,Platform Engineering,Engineering
+2026-02-03,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,101,Instance-Hours,1040.00,USD,Data Platform,Engineering
+2026-02-03,222222222222,data-platform-prod,production,AmazonS3,us-west-2,20300,GB,755.00,USD,Data Platform,Analytics
+2026-02-03,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,3100000,Requests,149.00,USD,Application Engineering,Engineering
+2026-02-03,111111111111,core-platform-prod,production,CloudWatch,us-east-1,1080,GB-Logs,247.00,USD,Platform Engineering,Shared Services
+2026-02-04,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,748,Instance-Hours,2860.00,USD,Platform Engineering,Engineering
+2026-02-04,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,99,Instance-Hours,1020.00,USD,Data Platform,Engineering
+2026-02-04,222222222222,data-platform-prod,production,AmazonS3,us-west-2,20500,GB,761.00,USD,Data Platform,Analytics
+2026-02-04,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,2920000,Requests,141.00,USD,Application Engineering,Engineering
+2026-02-04,111111111111,core-platform-prod,production,CloudWatch,us-east-1,980,GB-Logs,228.00,USD,Platform Engineering,Shared Services
+2026-02-05,111111111111,core-platform-prod,production,AmazonEC2,us-east-1,756,Instance-Hours,2895.00,USD,Platform Engineering,Engineering
+2026-02-05,111111111111,core-platform-prod,production,AmazonRDS,us-east-1,100,Instance-Hours,1028.00,USD,Data Platform,Engineering
+2026-02-05,222222222222,data-platform-prod,production,AmazonS3,us-west-2,20800,GB,772.00,USD,Data Platform,Analytics
+2026-02-05,333333333333,app-dev-sandbox,development,AWSLambda,us-west-2,2980000,Requests,144.00,USD,Application Engineering,Engineering
+2026-02-05,111111111111,core-platform-prod,production,CloudWatch,us-east-1,995,GB-Logs,231.00,USD,Platform Engineering,Shared Services
