@@ -1304,8 +1304,9 @@ def ingest_focus(ctx, input_file: Path):
     Azure Cost Management exports, GCP Billing exports, and existing FOCUS 1.0 CSVs.
     """
     try:
-        from .providers.detector import normalize_to_focus
         import sys as _sys
+
+        from .providers.detector import normalize_to_focus
 
         normalize_to_focus(input_file, file=_sys.stdout)
     except ValueError as exc:
