@@ -1,5 +1,7 @@
 # FinOps Lite
 
+[![CI](https://github.com/dianuhs/finops-lite/actions/workflows/test.yml/badge.svg)](https://github.com/dianuhs/finops-lite/actions/workflows/test.yml)
+
 **Part of the Visibility → Variance → Tradeoffs pipeline.**
 
 | Tool | Role | Repo |
@@ -19,14 +21,25 @@ FinOps Lite is a command-line tool that reads AWS Cost Explorer data and turns i
 
 - Shows AWS spend over a time window
 - Compares one period against another
-- Exports FOCUS 1.0 compliant CSV for downstream analysis (`BilledCost`, `ResourceId`, `ServiceName`, `ChargePeriodStart`, `ChargePeriodEnd`, `ChargeType`)
+- Exports FOCUS 1.0 compliant CSV from AWS Cost Explorer (`BilledCost`, `ResourceId`, `ServiceName`, `ChargePeriodStart`, `ChargePeriodEnd`, `ChargeType`)
+- **Ingests and normalizes Azure Cost Management and GCP Billing CSV exports to FOCUS 1.0** — provider auto-detected from column names
 - Produces simple, repeatable outputs for automation and reviews
+
+## Cloud Provider Support
+
+| Provider | Input | Command |
+|----------|-------|---------|
+| **AWS** | Cost Explorer API (live) | `finops export focus --days 30` |
+| **Azure** | Cost Management CSV export | `finops ingest focus --file billing.csv` |
+| **GCP** | Billing CSV export (BigQuery or Console) | `finops ingest focus --file billing.csv` |
+
+Provider is auto-detected from CSV column signatures — no `--provider` flag needed.
 
 ## Requirements
 
 - Python 3.9+ (project classifiers cover 3.9-3.12)
-- AWS account with Cost Explorer enabled
-- IAM access that includes `ce:GetCostAndUsage` and `sts:GetCallerIdentity`
+- **AWS:** account with Cost Explorer enabled; IAM with `ce:GetCostAndUsage` and `sts:GetCallerIdentity`
+- **Azure/GCP:** billing CSV exported from Azure portal or GCP Console/BigQuery
 
 ## Install
 
