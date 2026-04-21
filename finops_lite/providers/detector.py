@@ -81,7 +81,12 @@ def _normalize_azure(reader: csv.DictReader) -> Iterator[dict]:
         cost = row.get("CostInBillingCurrency") or row.get("Cost") or "0"
         currency = row.get("BillingCurrency") or row.get("Currency") or "USD"
         date = row.get("Date") or row.get("UsageDate") or ""
-        service = row.get("ServiceName") or row.get("ProductName") or row.get("MeterCategory") or ""
+        service = (
+            row.get("ServiceName")
+            or row.get("ProductName")
+            or row.get("MeterCategory")
+            or ""
+        )
         resource_id = row.get("ResourceId") or row.get("InstanceName") or ""
         charge_type = row.get("ChargeType") or "Usage"
         period_end = _next_day(date) if date else ""
@@ -134,6 +139,7 @@ def _next_day(date_str: str) -> str:
     """Return the next calendar day as YYYY-MM-DD, or empty string on failure."""
     try:
         from datetime import date, timedelta
+
         d = date.fromisoformat(date_str[:10])
         return (d + timedelta(days=1)).isoformat()
     except Exception:
