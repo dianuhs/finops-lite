@@ -1,12 +1,25 @@
 # FinOps Lite
 
+**Part of the Visibility → Variance → Tradeoffs pipeline.**
+
+| Tool | Role | Repo |
+|------|------|------|
+| **FinOps Lite** | Cost visibility — pull AWS spend, compare periods, export FOCUS 1.0 CSV | [dianuhs/finops-lite](https://github.com/dianuhs/finops-lite) |
+| FinOps Watchdog | Anomaly detection — detect spend spikes from any cost CSV | [dianuhs/finops-watchdog](https://github.com/dianuhs/finops-watchdog) |
+| Recovery Economics | Resilience modeling — model backup/restore costs and compare scenarios | [dianuhs/recovery-economics](https://github.com/dianuhs/recovery-economics) |
+| Cloud Cost Guard | Dashboard — turn cloud bills into clear actions | [dianuhs/cloud-cost-guard](https://github.com/dianuhs/cloud-cost-guard) |
+
+These four tools form one production FinOps pipeline built for finance and engineering teams: pull raw cost data → detect anomalies → model resilience tradeoffs → surface everything in a decision-ready dashboard.
+
+---
+
 FinOps Lite is a command-line tool that reads AWS Cost Explorer data and turns it into clear cost summaries, period comparisons, exports, and lightweight decision signals.
 
 ## What FinOps Lite Does
 
 - Shows AWS spend over a time window
 - Compares one period against another
-- Exports normalized CSV for downstream analysis
+- Exports FOCUS 1.0 compliant CSV for downstream analysis (`BilledCost`, `ResourceId`, `ServiceName`, `ChargePeriodStart`, `ChargePeriodEnd`, `ChargeType`)
 - Produces simple, repeatable outputs for automation and reviews
 
 ## Requirements
@@ -70,70 +83,28 @@ finops --profile finops-prod --region us-east-1 cost overview --days 30
 finops --profile finops-prod --region us-east-1 cost compare --current 2026-01 --baseline 2025-12
 ```
 
-### 2) Export FOCUS-lite CSV
+### 2) Export FOCUS 1.0 CSV
 
 ```bash
-finops --profile finops-prod --region us-east-1 export focus --days 30 > focus-lite.csv
+finops --profile finops-prod --region us-east-1 export focus --days 30 > focus-export.csv
 ```
 
-### 3) Flow exported CSV into `signals from-services`
+Output columns: `BilledCost`, `ResourceId`, `ServiceName`, `ChargePeriodStart`, `ChargePeriodEnd`, `ChargeType`, plus provider, currency, and usage metadata.
 
-`signals from-services` expects a service-rollup CSV shape. The sequence below converts `focus-lite.csv` into that shape, then runs signals:
+### 3) Feed exported CSV into FinOps Watchdog
+
+The FOCUS export feeds directly into [FinOps Watchdog](https://github.com/dianuhs/finops-watchdog) for anomaly detection:
 
 ```bash
-python3 - <<'PY'
-import csv
-from collections import defaultdict
+finops export focus --days 90 > focus-export.csv
 
-source = "focus-lite.csv"
-target = "services-rollup.csv"
-
-totals = defaultdict(float)
-days_seen = defaultdict(set)
-
-with open(source, "r", encoding="utf-8", newline="") as f:
-    for row in csv.DictReader(f):
-        service = (row.get("service") or "Unknown").strip()
-        cost = float(row.get("cost") or 0.0)
-        totals[service] += cost
-        days_seen[service].add(row.get("time_window_start"))
-
-grand_total = sum(totals.values()) or 1.0
-
-with open(target, "w", encoding="utf-8", newline="") as f:
-    writer = csv.DictWriter(
-        f,
-        fieldnames=[
-            "service_name",
-            "total_cost",
-            "percentage_of_total",
-            "daily_average",
-            "trend_direction",
-            "trend_percentage",
-            "trend_amount",
-        ],
-    )
-    writer.writeheader()
-
-    for service, total in sorted(totals.items(), key=lambda kv: kv[1], reverse=True):
-        day_count = max(len(days_seen[service]), 1)
-        writer.writerow(
-            {
-                "service_name": service,
-                "total_cost": f"{total:.2f}",
-                "percentage_of_total": f"{(total / grand_total) * 100:.2f}",
-                "daily_average": f"{total / day_count:.2f}",
-                # Quickstart defaults until multi-period trend input is provided:
-                "trend_direction": "stable",
-                "trend_percentage": "0.0",
-                "trend_amount": "0.0",
-            }
-        )
-
-print(f"Wrote {target}")
-PY
-
-finops signals from-services --file services-rollup.csv --period "Last 30 days" --format table
+finops-watchdog detect \
+  --input focus-export.csv \
+  --time-column ChargePeriodStart \
+  --value-column BilledCost \
+  --group-by ServiceName \
+  --window 30d \
+  --output-format json
 ```
 
 ## Current Limitation: `--group-by`
@@ -147,7 +118,7 @@ Default behavior is `SERVICE`. `--group-by SERVICE` is accepted explicitly. Any 
 - `finops cost overview --days 30`
 - `finops cost monthly --month 2026-01`
 - `finops cost compare --current 2026-01 --baseline 2025-12`
-- `finops export focus --days 30 > focus-lite.csv`
+- `finops export focus --days 30 > focus-export.csv`
 - `finops signals from-services --file services-rollup.csv --format table`
 - `finops cache stats`
 
@@ -163,6 +134,14 @@ finops cost monthly --month 2026-01 --format executive
 ## SQL Analysis
 
 For a portfolio-facing SQL view of the same cost domain, see [`sql-analysis/`](sql-analysis/). It includes a compact cloud cost dataset, a portable schema, and analyst-style queries for service mix, spend trends, anomaly review, and period-over-period comparison.
+
+## Pipeline
+
+FinOps Lite is step one. From here:
+
+- **[FinOps Watchdog](https://github.com/dianuhs/finops-watchdog)** — run anomaly detection on any cost CSV, including the FOCUS export above
+- **[Recovery Economics](https://github.com/dianuhs/recovery-economics)** — model and compare backup/restore cost scenarios
+- **[Cloud Cost Guard](https://github.com/dianuhs/cloud-cost-guard)** — full dashboard with spend trends, savings coverage, and rightsizing
 
 ## License
 
