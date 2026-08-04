@@ -4,8 +4,9 @@ Unit tests for summary payload construction.
 
 from datetime import date
 
-from finops_lite.summary import build_cost_summary
 import pytest
+
+from finops_lite.summary import build_cost_summary
 
 
 def _make_day(start_date, total_amount, groups):
@@ -91,7 +92,14 @@ def test_build_cost_summary_structure_and_math():
         "2026-01-02",
         "2026-01-03",
     ]
-    assert sum(row["cost"] for row in summary["daily_groups"] if row["date"] == "2026-01-01") == 150.0
+    assert (
+        sum(
+            row["cost"]
+            for row in summary["daily_groups"]
+            if row["date"] == "2026-01-01"
+        )
+        == 150.0
+    )
 
 
 def test_build_cost_summary_rejects_missing_day_instead_of_emitting_zero():

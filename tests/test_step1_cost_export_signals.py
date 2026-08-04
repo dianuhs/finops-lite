@@ -11,13 +11,12 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 
-from click.testing import CliRunner
 import pytest
+from click.testing import CliRunner
 
 import finops_lite.cli as cli_module
 from finops_lite.cli import cli
 from finops_lite.signals.from_services import REQUIRED_COLUMNS
-
 
 FOCUS_EXPORT_COLUMNS = [
     "BilledCost",
@@ -84,8 +83,10 @@ def _patch_cost_explorer_service(
                     "BilledCost": row.get("BilledCost") or row.get("cost", ""),
                     "ResourceId": row.get("ResourceId") or row.get("resource_id", ""),
                     "ServiceName": row.get("ServiceName") or row.get("service", ""),
-                    "ChargePeriodStart": row.get("ChargePeriodStart") or row.get("time_window_start", ""),
-                    "ChargePeriodEnd": row.get("ChargePeriodEnd") or row.get("time_window_end", ""),
+                    "ChargePeriodStart": row.get("ChargePeriodStart")
+                    or row.get("time_window_start", ""),
+                    "ChargePeriodEnd": row.get("ChargePeriodEnd")
+                    or row.get("time_window_end", ""),
                     "ChargeType": row.get("ChargeType", "Usage"),
                     "provider": row.get("provider", ""),
                     "currency": row.get("currency", ""),
@@ -119,9 +120,13 @@ def _create_service_rollup_from_focus_csv(focus_csv_path, rollup_csv_path):
     with focus_csv_path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            service = (row.get("ServiceName") or row.get("service") or "Unknown").strip()
+            service = (
+                row.get("ServiceName") or row.get("service") or "Unknown"
+            ).strip()
             totals[service] += float(row.get("BilledCost") or row.get("cost") or 0.0)
-            day_counts[service].add(row.get("ChargePeriodStart") or row.get("time_window_start") or "")
+            day_counts[service].add(
+                row.get("ChargePeriodStart") or row.get("time_window_start") or ""
+            )
 
     grand_total = sum(totals.values()) or 1.0
 
@@ -189,7 +194,12 @@ def test_cost_monthly_offline_stub_json_output(monkeypatch, stub_aws_connectivit
             ],
             "currency": "USD",
             "generated_at": datetime(2026, 1, 31),
-            "window": {"type": "calendar_month", "year": 2026, "month": 1, "label": "2026-01"},
+            "window": {
+                "type": "calendar_month",
+                "year": 2026,
+                "month": 1,
+                "label": "2026-01",
+            },
             "window_start": datetime(2026, 1, 1),
             "window_end": datetime(2026, 2, 1),
         },
@@ -317,7 +327,9 @@ def test_export_focus_csv_contract_mismatch_for_signals(
     )
 
     runner = CliRunner()
-    export_result = runner.invoke(cli, ["--no-cache", "export", "focus", "--days", "30"])
+    export_result = runner.invoke(
+        cli, ["--no-cache", "export", "focus", "--days", "30"]
+    )
     assert export_result.exit_code == 0
 
     focus_csv_path = _write_focus_csv(tmp_path / "focus-lite.csv", export_result.output)
@@ -384,7 +396,9 @@ def test_signals_from_services_with_rollup_derived_from_focus_csv(
     )
 
     runner = CliRunner()
-    export_result = runner.invoke(cli, ["--no-cache", "export", "focus", "--days", "30"])
+    export_result = runner.invoke(
+        cli, ["--no-cache", "export", "focus", "--days", "30"]
+    )
     assert export_result.exit_code == 0
 
     focus_csv_path = _write_focus_csv(tmp_path / "focus-lite.csv", export_result.output)

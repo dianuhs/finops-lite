@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 def _to_decimal(value: Any, *, field: str = "amount") -> Decimal:
@@ -186,7 +186,9 @@ def build_cost_summary(
         daily_cost = _round_money(daily_cost_decimal)
         daily_trend.append({"date": date_str, "cost": daily_cost})
         for group, cost in sorted(daily_group_totals.get(date_str, {}).items()):
-            daily_groups.append({"date": date_str, "group": group, "cost": _round_money(cost)})
+            daily_groups.append(
+                {"date": date_str, "group": group, "cost": _round_money(cost)}
+            )
         cursor += timedelta(days=1)
 
     return {

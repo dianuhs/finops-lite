@@ -12,7 +12,6 @@ from functools import wraps
 from typing import Any, Callable, Dict, List, Optional
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     Progress,

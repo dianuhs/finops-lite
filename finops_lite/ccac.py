@@ -7,11 +7,10 @@ import json
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Mapping
 
 from . import __version__
-
 
 CONTRACT_VERSION = "ccac/1.0.0"
 AWS_COST_EXPLORER_API_VERSION = "2017-10-25"
@@ -99,7 +98,15 @@ def _metric(
     return {
         "id": metric_id,
         "name": name,
-        "value": None if value is None else (_percentage(value) if currency is None and "percentage" in name.lower() else _money(value)),
+        "value": (
+            None
+            if value is None
+            else (
+                _percentage(value)
+                if currency is None and "percentage" in name.lower()
+                else _money(value)
+            )
+        ),
         "unknown_reason": unknown_reason,
         "unit": "currency" if currency else "percent",
         "currency": currency,
@@ -157,13 +164,17 @@ def build_ccac_result(
     if not isinstance(daily_trend, list) or not daily_trend:
         raise CCACBuildError("daily_trend must contain at least one daily value")
     if not isinstance(daily_groups, list):
-        raise CCACBuildError("daily_groups must contain the complete daily service breakdown")
+        raise CCACBuildError(
+            "daily_groups must contain the complete daily service breakdown"
+        )
 
     service_rows: list[tuple[str, Decimal]] = []
     for index, row in enumerate(top_groups):
         if not isinstance(row, Mapping) or not str(row.get("group", "")).strip():
             raise CCACBuildError(f"top_groups[{index}].group is required")
-        service_rows.append((str(row["group"]), _decimal(row.get("cost"), f"top_groups[{index}].cost")))
+        service_rows.append(
+            (str(row["group"]), _decimal(row.get("cost"), f"top_groups[{index}].cost"))
+        )
     service_sum = sum((cost for _, cost in service_rows), Decimal("0"))
     if abs(service_sum - total) > MONEY_QUANTUM:
         raise CCACBuildError(
@@ -188,38 +199,60 @@ def build_ccac_result(
     }
     actual_days = [day for day, _ in daily_rows]
     if len(actual_days) != len(set(actual_days)) or set(actual_days) != expected_days:
-        raise CCACBuildError("daily_trend must contain each source-window date exactly once")
+        raise CCACBuildError(
+            "daily_trend must contain each source-window date exactly once"
+        )
 
     day_service_rows: list[tuple[date, str, Decimal]] = []
     seen_day_services: set[tuple[date, str]] = set()
     for index, row in enumerate(daily_groups):
         if not isinstance(row, Mapping) or not str(row.get("group", "")).strip():
-            raise CCACBuildError(f"daily_groups[{index}] requires date, group, and cost")
+            raise CCACBuildError(
+                f"daily_groups[{index}] requires date, group, and cost"
+            )
         day = _parse_date(row.get("date"), f"daily_groups[{index}].date")
         service = str(row["group"])
         key = (day, service)
         if key in seen_day_services:
             raise CCACBuildError(f"duplicate daily service row for {day} and {service}")
         seen_day_services.add(key)
-        day_service_rows.append((day, service, _decimal(row.get("cost"), f"daily_groups[{index}].cost")))
+        day_service_rows.append(
+            (day, service, _decimal(row.get("cost"), f"daily_groups[{index}].cost"))
+        )
     for day, daily_cost in daily_rows:
-        grouped_cost = sum((cost for row_day, _, cost in day_service_rows if row_day == day), Decimal("0"))
+        grouped_cost = sum(
+            (cost for row_day, _, cost in day_service_rows if row_day == day),
+            Decimal("0"),
+        )
         if abs(grouped_cost - daily_cost) > MONEY_QUANTUM:
-            raise CCACBuildError(f"Daily service breakdown does not reconcile for {day}")
+            raise CCACBuildError(
+                f"Daily service breakdown does not reconcile for {day}"
+            )
     for service, service_cost in service_rows:
-        grouped_cost = sum((cost for _, row_service, cost in day_service_rows if row_service == service), Decimal("0"))
+        grouped_cost = sum(
+            (
+                cost
+                for _, row_service, cost in day_service_rows
+                if row_service == service
+            ),
+            Decimal("0"),
+        )
         if abs(grouped_cost - service_cost) > MONEY_QUANTUM:
             raise CCACBuildError(f"Daily service rows do not reconcile for {service}")
 
     source_change_pct = summary.get("change_pct")
     if previous == 0:
         if source_change_pct is not None:
-            raise CCACBuildError("change_pct must be null when previous_total_cost is zero")
+            raise CCACBuildError(
+                "change_pct must be null when previous_total_cost is zero"
+            )
     elif source_change_pct is not None:
         calculated_change_pct = ((total - previous) / previous) * Decimal("100")
         supplied_change_pct = _decimal(source_change_pct, "change_pct")
         if abs(calculated_change_pct - supplied_change_pct) > Decimal("0.1"):
-            raise CCACBuildError("change_pct does not reconcile to current and previous totals")
+            raise CCACBuildError(
+                "change_pct does not reconcile to current and previous totals"
+            )
 
     source_payload = dict(summary)
     canonical_source = _canonical_json(source_payload)
@@ -229,42 +262,48 @@ def build_ccac_result(
     evidence_id = "evidence.finops-lite.cost-summary"
     metrics: list[dict[str, Any]] = []
 
-    metrics.append(_metric(
-        metric_id="metric.cloud.total",
-        name="Cloud cost",
-        value=total,
-        currency=currency,
-        basis="observed",
-        additivity="additive",
-        period=period,
-        dimensions={"scope": "cloud", "provider": "aws"},
-        evidence_id=evidence_id,
-    ))
-    metrics.append(_metric(
-        metric_id="metric.cloud.previous-total",
-        name="Previous cloud cost",
-        value=previous,
-        currency=currency,
-        basis="observed",
-        additivity="additive",
-        period=period,
-        dimensions={"scope": "cloud", "comparison": "previous_equal_length_period"},
-        evidence_id=evidence_id,
-    ))
+    metrics.append(
+        _metric(
+            metric_id="metric.cloud.total",
+            name="Cloud cost",
+            value=total,
+            currency=currency,
+            basis="observed",
+            additivity="additive",
+            period=period,
+            dimensions={"scope": "cloud", "provider": "aws"},
+            evidence_id=evidence_id,
+        )
+    )
+    metrics.append(
+        _metric(
+            metric_id="metric.cloud.previous-total",
+            name="Previous cloud cost",
+            value=previous,
+            currency=currency,
+            basis="observed",
+            additivity="additive",
+            period=period,
+            dimensions={"scope": "cloud", "comparison": "previous_equal_length_period"},
+            evidence_id=evidence_id,
+        )
+    )
     change = total - previous
-    metrics.append(_metric(
-        metric_id="metric.cloud.change-amount",
-        name="Cloud cost change amount",
-        value=change,
-        currency=currency,
-        basis="calculated",
-        additivity="non_additive",
-        period=period,
-        dimensions={"scope": "cloud"},
-        evidence_id=evidence_id,
-        formula="metric.cloud.total - metric.cloud.previous-total",
-        input_metric_ids=["metric.cloud.total", "metric.cloud.previous-total"],
-    ))
+    metrics.append(
+        _metric(
+            metric_id="metric.cloud.change-amount",
+            name="Cloud cost change amount",
+            value=change,
+            currency=currency,
+            basis="calculated",
+            additivity="non_additive",
+            period=period,
+            dimensions={"scope": "cloud"},
+            evidence_id=evidence_id,
+            formula="metric.cloud.total - metric.cloud.previous-total",
+            input_metric_ids=["metric.cloud.total", "metric.cloud.previous-total"],
+        )
+    )
     if previous == 0:
         change_pct = None
         change_basis = "unknown"
@@ -275,65 +314,90 @@ def build_ccac_result(
         change_basis = "calculated"
         change_formula = "(metric.cloud.total - metric.cloud.previous-total) / metric.cloud.previous-total * 100"
         unknown_reason = None
-    metrics.append(_metric(
-        metric_id="metric.cloud.change-percentage",
-        name="Cloud cost change percentage",
-        value=change_pct,
-        currency=None,
-        basis=change_basis,
-        additivity="ratio",
-        period=period,
-        dimensions={"scope": "cloud"},
-        evidence_id=evidence_id,
-        formula=change_formula,
-        input_metric_ids=["metric.cloud.total", "metric.cloud.previous-total"],
-        unknown_reason=unknown_reason,
-    ))
+    metrics.append(
+        _metric(
+            metric_id="metric.cloud.change-percentage",
+            name="Cloud cost change percentage",
+            value=change_pct,
+            currency=None,
+            basis=change_basis,
+            additivity="ratio",
+            period=period,
+            dimensions={"scope": "cloud"},
+            evidence_id=evidence_id,
+            formula=change_formula,
+            input_metric_ids=["metric.cloud.total", "metric.cloud.previous-total"],
+            unknown_reason=unknown_reason,
+        )
+    )
 
     service_metric_ids = []
     for service, cost in service_rows:
         metric_id = f"metric.cloud.service.{_stable_component(service)}.cost"
         service_metric_ids.append(metric_id)
-        metrics.append(_metric(
-            metric_id=metric_id,
-            name=f"{service} cost",
-            value=cost,
-            currency=currency,
-            basis="observed",
-            additivity="additive",
-            period=period,
-            dimensions={"scope": "cloud", "provider": "aws", "service": service},
-            evidence_id=evidence_id,
-        ))
+        metrics.append(
+            _metric(
+                metric_id=metric_id,
+                name=f"{service} cost",
+                value=cost,
+                currency=currency,
+                basis="observed",
+                additivity="additive",
+                period=period,
+                dimensions={"scope": "cloud", "provider": "aws", "service": service},
+                evidence_id=evidence_id,
+            )
+        )
 
     for day, cost in daily_rows:
-        metrics.append(_metric(
-            metric_id=f"metric.cloud.day.{day.isoformat()}.cost",
-            name=f"Cloud cost for {day.isoformat()}",
-            value=cost,
-            currency=currency,
-            basis="observed",
-            additivity="additive",
-            period={"start": day.isoformat(), "end": (day + timedelta(days=1)).isoformat(), "timezone": "UTC"},
-            dimensions={"scope": "cloud", "provider": "aws", "date": day.isoformat()},
-            evidence_id=evidence_id,
-        ))
+        metrics.append(
+            _metric(
+                metric_id=f"metric.cloud.day.{day.isoformat()}.cost",
+                name=f"Cloud cost for {day.isoformat()}",
+                value=cost,
+                currency=currency,
+                basis="observed",
+                additivity="additive",
+                period={
+                    "start": day.isoformat(),
+                    "end": (day + timedelta(days=1)).isoformat(),
+                    "timezone": "UTC",
+                },
+                dimensions={
+                    "scope": "cloud",
+                    "provider": "aws",
+                    "date": day.isoformat(),
+                },
+                evidence_id=evidence_id,
+            )
+        )
 
     daily_service_metric_ids = []
     for day, service, cost in day_service_rows:
         metric_id = f"metric.cloud.service.{_stable_component(service)}.day.{day.isoformat()}.cost"
         daily_service_metric_ids.append(metric_id)
-        metrics.append(_metric(
-            metric_id=metric_id,
-            name=f"{service} cost for {day.isoformat()}",
-            value=cost,
-            currency=currency,
-            basis="observed",
-            additivity="additive",
-            period={"start": day.isoformat(), "end": (day + timedelta(days=1)).isoformat(), "timezone": "UTC"},
-            dimensions={"scope": "cloud", "provider": "aws", "service": service, "date": day.isoformat()},
-            evidence_id=evidence_id,
-        ))
+        metrics.append(
+            _metric(
+                metric_id=metric_id,
+                name=f"{service} cost for {day.isoformat()}",
+                value=cost,
+                currency=currency,
+                basis="observed",
+                additivity="additive",
+                period={
+                    "start": day.isoformat(),
+                    "end": (day + timedelta(days=1)).isoformat(),
+                    "timezone": "UTC",
+                },
+                dimensions={
+                    "scope": "cloud",
+                    "provider": "aws",
+                    "service": service,
+                    "date": day.isoformat(),
+                },
+                evidence_id=evidence_id,
+            )
+        )
 
     return {
         "contract": CONTRACT_VERSION,
@@ -343,30 +407,44 @@ def build_ccac_result(
         "generated_at": generated_timestamp,
         "mode": mode,
         "period": period,
-        "inputs": [{
-            "id": source_id,
-            "source_type": source_type,
-            "source_version": source_version,
-            "adapter_version": __version__,
-            "content_sha256": source_hash,
-            "access": "illustrative_fixture" if mode == "illustrative" else "external_read_only",
-            "data_classification": "public_illustrative" if mode == "illustrative" else "customer_confidential",
-            "lossy_mapping": True,
-            "mapping_notes": ["Service-level AWS Cost Explorer summary; not resource-level FOCUS billing rows."],
-        }],
+        "inputs": [
+            {
+                "id": source_id,
+                "source_type": source_type,
+                "source_version": source_version,
+                "adapter_version": __version__,
+                "content_sha256": source_hash,
+                "access": (
+                    "illustrative_fixture"
+                    if mode == "illustrative"
+                    else "external_read_only"
+                ),
+                "data_classification": (
+                    "public_illustrative"
+                    if mode == "illustrative"
+                    else "customer_confidential"
+                ),
+                "lossy_mapping": True,
+                "mapping_notes": [
+                    "Service-level AWS Cost Explorer summary; not resource-level FOCUS billing rows."
+                ],
+            }
+        ],
         "quality": {"status": "valid", "issues": []},
         "metrics": metrics,
         "findings": [],
         "opportunities": [],
-        "evidence": [{
-            "id": evidence_id,
-            "kind": "source_query",
-            "source_ids": [source_id],
-            "description": "Complete service-level AWS Cost Explorer summary with equal-length previous-period comparison.",
-            "locator": "canonical-json:summary",
-            "observed_at": generated_timestamp,
-            "content_sha256": source_hash,
-        }],
+        "evidence": [
+            {
+                "id": evidence_id,
+                "kind": "source_query",
+                "source_ids": [source_id],
+                "description": "Complete service-level AWS Cost Explorer summary with equal-length previous-period comparison.",
+                "locator": "canonical-json:summary",
+                "observed_at": generated_timestamp,
+                "content_sha256": source_hash,
+            }
+        ],
         "extensions": {
             "finops_lite": {
                 "group_by": "SERVICE",
@@ -408,7 +486,11 @@ def illustrative_summary() -> dict[str, Any]:
             for index, cost in enumerate(daily_costs)
         ],
         "daily_groups": [
-            {"date": (start + timedelta(days=index)).isoformat(), "group": service, "cost": round(cost * share, 2)}
+            {
+                "date": (start + timedelta(days=index)).isoformat(),
+                "group": service,
+                "cost": round(cost * share, 2),
+            }
             for index, cost in enumerate(daily_costs)
             for service, share in (("AmazonEC2", 0.7), ("AmazonS3", 0.3))
         ],

@@ -4,9 +4,13 @@ Basic tests for FinOps Lite.
 
 import pytest
 
-from finops_lite.utils.errors import (AWSCredentialsError, ValidationError,
-                                      handle_error, validate_days,
-                                      validate_threshold)
+from finops_lite.utils.errors import (
+    AWSCredentialsError,
+    ValidationError,
+    handle_error,
+    validate_days,
+    validate_threshold,
+)
 
 
 def test_validate_days_valid():
@@ -66,9 +70,8 @@ def test_handle_error_basic():
 
 def test_cli_imports():
     """Test that CLI modules can be imported."""
-    from finops_lite.cli import cli, main
-    from finops_lite.utils.config import load_config
-    from finops_lite.utils.logger import setup_logger
+    import importlib
 
-    # If we get here without ImportError, the test passes
-    assert True
+    assert importlib.import_module("finops_lite.cli")
+    assert importlib.import_module("finops_lite.utils.config")
+    assert importlib.import_module("finops_lite.utils.logger")

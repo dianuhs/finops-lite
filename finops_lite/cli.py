@@ -42,7 +42,6 @@ from .utils.errors import (
     validate_aws_profile,
     validate_aws_region,
     validate_days,
-    validate_threshold,
 )
 from .utils.logger import setup_logger
 from .utils.performance import (
@@ -1212,12 +1211,36 @@ def summarize(ctx, start, end, group_by):
 
 
 @cli.command("ccac")
-@click.option("--demo", is_flag=True, help="Use deterministic illustrative data without AWS credentials.")
-@click.option("--start", callback=lambda ctx, param, value: _parse_yyyy_mm_dd(value) if value else None, help="Start date for real AWS data (YYYY-MM-DD).")
-@click.option("--end", callback=lambda ctx, param, value: _parse_yyyy_mm_dd(value) if value else None, help="Inclusive end date for real AWS data (YYYY-MM-DD).")
-@click.option("--run-id", default=None, help="Run UUID. Demo mode uses a fixed UUID when omitted.")
-@click.option("--generated-at", default=None, help="RFC3339 timestamp. Demo mode uses a fixed timestamp when omitted.")
-@click.option("--output", "output_file", type=click.Path(path_type=Path, dir_okay=False), default=None, help="Write JSON to this file instead of stdout.")
+@click.option(
+    "--demo",
+    is_flag=True,
+    help="Use deterministic illustrative data without AWS credentials.",
+)
+@click.option(
+    "--start",
+    callback=lambda ctx, param, value: _parse_yyyy_mm_dd(value) if value else None,
+    help="Start date for real AWS data (YYYY-MM-DD).",
+)
+@click.option(
+    "--end",
+    callback=lambda ctx, param, value: _parse_yyyy_mm_dd(value) if value else None,
+    help="Inclusive end date for real AWS data (YYYY-MM-DD).",
+)
+@click.option(
+    "--run-id", default=None, help="Run UUID. Demo mode uses a fixed UUID when omitted."
+)
+@click.option(
+    "--generated-at",
+    default=None,
+    help="RFC3339 timestamp. Demo mode uses a fixed timestamp when omitted.",
+)
+@click.option(
+    "--output",
+    "output_file",
+    type=click.Path(path_type=Path, dir_okay=False),
+    default=None,
+    help="Write JSON to this file instead of stdout.",
+)
 @click.pass_context
 def ccac_output(ctx, demo, start, end, run_id, generated_at, output_file):
     """Emit the canonical CCAC 1.0 FinOps Lite tool result."""
@@ -1355,12 +1378,19 @@ def export_focus(ctx, days):
 
 @export.command("focus2026")
 @click.option(
-    "--days", "-d", default=30, type=int,
+    "--days",
+    "-d",
+    default=30,
+    type=int,
     help="Number of days to include in the export (default: 30)",
     callback=lambda ctx, param, value: validate_days(value) if value else 30,
 )
 @click.option(
-    "--output", "-o", "output_file", default=None, type=click.Path(),
+    "--output",
+    "-o",
+    "output_file",
+    default=None,
+    type=click.Path(),
     help="Output file path (default: stdout)",
 )
 @click.pass_context
@@ -1384,13 +1414,15 @@ def export_focus2026(ctx, days, output_file):
             err=True,
         )
         if dry_run:
-            click.echo("Dry-run mode: experimental export requires real AWS data.", err=True)
+            click.echo(
+                "Dry-run mode: experimental export requires real AWS data.", err=True
+            )
             return
 
         _ = _test_aws_connectivity(config, logger, cache_manager, show_status=False)
 
         from .core.cost_explorer import CostExplorerService
-        from .focus_2026 import Focus2026Record, export_focus_2026, from_focus_1_record
+        from .focus_2026 import export_focus_2026, from_focus_1_record
 
         svc = CostExplorerService(config)
         focus1_records = svc.get_focus_lite_records(days=days)
@@ -1413,14 +1445,20 @@ def export_focus2026(ctx, days, output_file):
         if output_file:
             with open(output_file, "w", newline="", encoding="utf-8") as f:
                 n = export_focus_2026(focus2026_records, f)
-            click.echo(f"Experimental draft export: {n} rows -> {output_file}", err=True)
+            click.echo(
+                f"Experimental draft export: {n} rows -> {output_file}", err=True
+            )
         else:
             export_focus_2026(focus2026_records, sys.stdout)
 
     except (
-        CostExplorerNotEnabledError, CostExplorerWarmingUpError,
-        AWSCredentialsError, AWSPermissionError,
-        APIRateLimitError, NetworkTimeoutError, ValidationError,
+        CostExplorerNotEnabledError,
+        CostExplorerWarmingUpError,
+        AWSCredentialsError,
+        AWSPermissionError,
+        APIRateLimitError,
+        NetworkTimeoutError,
+        ValidationError,
     ) as e:
         if performance_tracker:
             performance_tracker.record_error()
@@ -1445,16 +1483,19 @@ def validate(ctx):
 
 @validate.command("focus")
 @click.argument("csv_file", type=click.Path(exists=True))
-@click.option("--verbose", "-v", is_flag=True, help="Show all issues (not just first 10)")
 @click.option(
-    "--spec", default="experimental",
+    "--verbose", "-v", is_flag=True, help="Show all issues (not just first 10)"
+)
+@click.option(
+    "--spec",
+    default="experimental",
     type=click.Choice(["experimental", "2026"]),
     help="Legacy experimental schema only. Use the FinOps Foundation validator for official FOCUS.",
 )
 @click.pass_context
 def validate_focus(ctx, csv_file, verbose, spec):
     """Validate a billing CSV against the legacy experimental schema."""
-    from .focus_2026 import validate_focus_2026_csv, print_validation_report
+    from .focus_2026 import print_validation_report, validate_focus_2026_csv
 
     click.echo(
         "Warning: this validates the deprecated Cloud & Capital experimental schema, "

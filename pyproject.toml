@@ -41,7 +41,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<9"]
+dev = [
+    "black>=26,<27",
+    "flake8>=7,<8",
+    "isort>=6,<7",
+    "pip-audit>=2.10,<3",
+    "pytest>=8,<9",
+]
 
 [project.scripts]
 finops = "finops_lite.cli:main"
@@ -54,3 +60,6 @@ Repository = "https://github.com/cloudandcapital/finops-lite.git"
 
 [tool.hatch.version]
 path = "finops_lite/__init__.py"
+
+[tool.black]
+target-version = ["py310"]
