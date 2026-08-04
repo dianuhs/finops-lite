@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 — 2026-08-04
+
+- Add a standard `finops-lite --version` installation smoke check.
+- Add deterministic `finops ccac --demo` and real AWS `finops ccac` output conforming to `ccac/1.0.0`.
+- Emit source identity/version, content hashes, evidence references, canonical metrics, and exact service/daily reconciliation.
+- Fetch the complete service set for canonical output rather than a top-ten truncation.
+- Reject missing, malformed, NaN, and infinite monetary values instead of coercing them to zero.
+- Delay cache-directory creation so help, version, and credential-free demo paths work with an unavailable home directory.
+- Correct repository metadata and accurately document AWS-only native API support.
+- Retire the false “FOCUS 2026” claim; retain the old command only as a deprecated experimental compatibility path.
+- Add CCAC, determinism, reconciliation, strict-numeric, and home-write tests.
+- Expand the canonical illustrative fixture to 21 consecutive days with a deliberate final-day spike so Watchdog's default history window can run without weakening its evidence requirements.
+- Emit daily-by-service metrics reconciled to both daily totals and period service totals.
+- Reject missing Cost Explorer days instead of silently emitting observed zero spend.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),

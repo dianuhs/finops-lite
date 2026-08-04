@@ -7,7 +7,6 @@ import time
 from functools import wraps
 from typing import Any, Callable, Optional
 
-import click
 from rich.console import Console
 from rich.panel import Panel
 

@@ -23,6 +23,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm
 from rich.table import Table
 
+from . import __version__
 from .reports.formatters import ReportFormatter
 from .signals.cli import signals
 from .summary import build_cost_summary
@@ -41,7 +42,6 @@ from .utils.errors import (
     validate_aws_profile,
     validate_aws_region,
     validate_days,
-    validate_threshold,
 )
 from .utils.logger import setup_logger
 from .utils.performance import (
@@ -65,6 +65,7 @@ class FinOpsContext:
 
 
 @click.group()
+@click.version_option(version=__version__, prog_name="finops-lite")
 @click.option(
     "--config",
     "-c",
@@ -1060,6 +1061,7 @@ def run_summarize(
     cache_manager: Optional[CacheManager] = None,
     performance_tracker: Optional[PerformanceTracker] = None,
     logger=None,
+    top_n: Optional[int] = 10,
 ) -> dict:
     """
     Build a compact cost baseline summary dict for the given window.
@@ -1082,6 +1084,7 @@ def run_summarize(
         "group_by": group_by,
         "profile": config.aws.profile,
         "region": config.aws.region,
+        "top_n": top_n,
     }
 
     summary = None
@@ -1120,6 +1123,7 @@ def run_summarize(
             group_by=group_by,
             window_start=start_date,
             window_end=end_date,
+            top_n=top_n,
         )
 
         if cache_manager:
@@ -1206,6 +1210,98 @@ def summarize(ctx, start, end, group_by):
             performance_tracker.finish_current_operation()
 
 
+@cli.command("ccac")
+@click.option(
+    "--demo",
+    is_flag=True,
+    help="Use deterministic illustrative data without AWS credentials.",
+)
+@click.option(
+    "--start",
+    callback=lambda ctx, param, value: _parse_yyyy_mm_dd(value) if value else None,
+    help="Start date for real AWS data (YYYY-MM-DD).",
+)
+@click.option(
+    "--end",
+    callback=lambda ctx, param, value: _parse_yyyy_mm_dd(value) if value else None,
+    help="Inclusive end date for real AWS data (YYYY-MM-DD).",
+)
+@click.option(
+    "--run-id", default=None, help="Run UUID. Demo mode uses a fixed UUID when omitted."
+)
+@click.option(
+    "--generated-at",
+    default=None,
+    help="RFC3339 timestamp. Demo mode uses a fixed timestamp when omitted.",
+)
+@click.option(
+    "--output",
+    "output_file",
+    type=click.Path(path_type=Path, dir_okay=False),
+    default=None,
+    help="Write JSON to this file instead of stdout.",
+)
+@click.pass_context
+def ccac_output(ctx, demo, start, end, run_id, generated_at, output_file):
+    """Emit the canonical CCAC 1.0 FinOps Lite tool result."""
+    from .ccac import (
+        AWS_COST_EXPLORER_API_VERSION,
+        CCACBuildError,
+        build_ccac_result,
+        illustrative_summary,
+    )
+
+    config = ctx.obj.config
+    cache_manager = ctx.obj.cache_manager
+    _configure_output_mode(cache_manager, True)
+
+    if demo and (start or end):
+        raise click.UsageError("--demo cannot be combined with --start or --end")
+    if not demo and (not start or not end):
+        raise click.UsageError("Real mode requires both --start and --end")
+    if start and end and end < start:
+        raise click.BadParameter("End date must be on or after start date.")
+
+    try:
+        if demo:
+            summary = illustrative_summary()
+            mode = "illustrative"
+            source_type = "finops_lite_demo_summary"
+            source_version = "1.0.0"
+            run_id = run_id or "123e4567-e89b-12d3-a456-426614174000"
+            generated_at = generated_at or "2026-08-04T12:00:00Z"
+        else:
+            summary = run_summarize(
+                config,
+                start,
+                end,
+                "SERVICE",
+                cache_manager=cache_manager,
+                performance_tracker=ctx.obj.performance_tracker,
+                logger=ctx.obj.logger,
+                top_n=None,
+            )
+            mode = "real"
+            source_type = "aws_cost_explorer_api"
+            source_version = AWS_COST_EXPLORER_API_VERSION
+
+        result = build_ccac_result(
+            summary,
+            mode=mode,
+            source_type=source_type,
+            source_version=source_version,
+            run_id=run_id,
+            generated_at=generated_at,
+        )
+        payload = json.dumps(result, indent=2, sort_keys=True) + "\n"
+        if output_file:
+            output_file.write_text(payload, encoding="utf-8")
+        else:
+            click.echo(payload, nl=False)
+    except CCACBuildError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
 @cli.group()
 @click.pass_context
 def export(ctx):
@@ -1282,17 +1378,24 @@ def export_focus(ctx, days):
 
 @export.command("focus2026")
 @click.option(
-    "--days", "-d", default=30, type=int,
+    "--days",
+    "-d",
+    default=30,
+    type=int,
     help="Number of days to include in the export (default: 30)",
     callback=lambda ctx, param, value: validate_days(value) if value else 30,
 )
 @click.option(
-    "--output", "-o", "output_file", default=None, type=click.Path(),
+    "--output",
+    "-o",
+    "output_file",
+    default=None,
+    type=click.Path(),
     help="Output file path (default: stdout)",
 )
 @click.pass_context
 def export_focus2026(ctx, days, output_file):
-    """Export AWS cost data as FOCUS 2026 CSV — the latest FinOps Foundation spec."""
+    """Deprecated experimental draft export; this is not an official FOCUS version."""
     config = ctx.obj.config
     logger = ctx.obj.logger
     dry_run = ctx.obj.dry_run
@@ -1305,16 +1408,21 @@ def export_focus2026(ctx, days, output_file):
         performance_tracker.start_operation("export_focus2026")
 
     try:
+        click.echo(
+            "Warning: focus2026 is a deprecated Cloud & Capital experimental schema, "
+            "not an official FOCUS specification version.",
+            err=True,
+        )
         if dry_run:
-            console.print(
-                "[yellow]Dry-run mode: FOCUS 2026 export requires real AWS data.[/yellow]"
+            click.echo(
+                "Dry-run mode: experimental export requires real AWS data.", err=True
             )
             return
 
         _ = _test_aws_connectivity(config, logger, cache_manager, show_status=False)
 
         from .core.cost_explorer import CostExplorerService
-        from .focus_2026 import Focus2026Record, export_focus_2026, from_focus_1_record
+        from .focus_2026 import export_focus_2026, from_focus_1_record
 
         svc = CostExplorerService(config)
         focus1_records = svc.get_focus_lite_records(days=days)
@@ -1337,14 +1445,20 @@ def export_focus2026(ctx, days, output_file):
         if output_file:
             with open(output_file, "w", newline="", encoding="utf-8") as f:
                 n = export_focus_2026(focus2026_records, f)
-            console.print(f"[green]FOCUS 2026 export: {n} rows → {output_file}[/green]")
+            click.echo(
+                f"Experimental draft export: {n} rows -> {output_file}", err=True
+            )
         else:
             export_focus_2026(focus2026_records, sys.stdout)
 
     except (
-        CostExplorerNotEnabledError, CostExplorerWarmingUpError,
-        AWSCredentialsError, AWSPermissionError,
-        APIRateLimitError, NetworkTimeoutError, ValidationError,
+        CostExplorerNotEnabledError,
+        CostExplorerWarmingUpError,
+        AWSCredentialsError,
+        AWSPermissionError,
+        APIRateLimitError,
+        NetworkTimeoutError,
+        ValidationError,
     ) as e:
         if performance_tracker:
             performance_tracker.record_error()
@@ -1363,27 +1477,31 @@ def export_focus2026(ctx, days, output_file):
 @cli.group()
 @click.pass_context
 def validate(ctx):
-    """Validate billing data against FinOps specifications."""
+    """Validate the deprecated experimental billing schema."""
     pass
 
 
 @validate.command("focus")
 @click.argument("csv_file", type=click.Path(exists=True))
-@click.option("--verbose", "-v", is_flag=True, help="Show all issues (not just first 10)")
 @click.option(
-    "--spec", default="2026",
-    type=click.Choice(["2026", "1.0"]),
-    help="FOCUS spec version to validate against (default: 2026)",
+    "--verbose", "-v", is_flag=True, help="Show all issues (not just first 10)"
+)
+@click.option(
+    "--spec",
+    default="experimental",
+    type=click.Choice(["experimental", "2026"]),
+    help="Legacy experimental schema only. Use the FinOps Foundation validator for official FOCUS.",
 )
 @click.pass_context
 def validate_focus(ctx, csv_file, verbose, spec):
-    """Validate a billing CSV against the FOCUS specification."""
-    from .focus_2026 import validate_focus_2026_csv, print_validation_report
+    """Validate a billing CSV against the legacy experimental schema."""
+    from .focus_2026 import print_validation_report, validate_focus_2026_csv
 
-    console.print(f"[cyan]Validating {csv_file} against FOCUS {spec}...[/cyan]")
-
-    if spec == "1.0":
-        console.print("[yellow]FOCUS 1.0 validation uses the FOCUS 2026 required-column subset.[/yellow]")
+    click.echo(
+        "Warning: this validates the deprecated Cloud & Capital experimental schema, "
+        "not official FOCUS conformance.",
+        err=True,
+    )
 
     result = validate_focus_2026_csv(csv_file)
     print_validation_report(result, verbose=verbose)

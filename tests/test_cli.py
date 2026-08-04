@@ -4,12 +4,12 @@ Updated to match enhanced error handling and new features.
 """
 
 import os
+
 import pytest
 from click.testing import CliRunner
 
 from finops_lite.cli import cli
-from finops_lite.utils.errors import (ValidationError, validate_days,
-                                      validate_threshold)
+from finops_lite.utils.errors import ValidationError, validate_days, validate_threshold
 
 
 class TestCLIBasics:
@@ -21,6 +21,11 @@ class TestCLIBasics:
         result = runner.invoke(cli, ["version"])
         assert result.exit_code == 0
         assert "FinOps Lite" in result.output
+
+    def test_version_option(self):
+        result = CliRunner().invoke(cli, ["--version"])
+        assert result.exit_code == 0
+        assert result.output.strip() == "finops-lite, version 0.2.0"
 
     def test_help_command(self):
         """Test help command."""

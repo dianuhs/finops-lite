@@ -6,10 +6,9 @@ Provides intelligent caching of API responses to improve performance and reduce 
 import hashlib
 import json
 import time
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from rich.console import Console
 
@@ -70,7 +69,6 @@ class CacheManager:
             silent: Suppress user-facing cache chatter when True
         """
         self.cache_dir = cache_dir or Path.home() / ".finops" / "cache"
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.max_cache_size_mb = max_cache_size_mb
         self.silent = silent
         self.cache_file = self.cache_dir / "api_cache.json"
@@ -143,6 +141,7 @@ class CacheManager:
     def _save_cache(self):
         """Save cache to disk."""
         try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
             # Clean expired entries before saving
             self._clean_expired_entries(self._cache)
 

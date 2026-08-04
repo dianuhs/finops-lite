@@ -9,7 +9,6 @@ from functools import wraps
 from typing import Any, Dict, Optional
 
 import boto3
-import botocore
 from botocore.config import Config
 from botocore.exceptions import (
     BotoCoreError,

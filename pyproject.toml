@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "finops-lite"
-version = "0.1.0"
-description = "AWS FinOps CLI for cost visibility, optimization, and governance"
+version = "0.2.0"
+description = "AWS cost visibility CLI and canonical CCAC producer"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Diana", email = "your.email@example.com"},
+    {name = "Diana Molski", email = "diana@cloudandcapital.com"},
 ]
 keywords = ["aws", "finops", "cost-optimization", "cloud", "cli"]
 classifiers = [
@@ -20,7 +20,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -41,14 +40,26 @@ dependencies = [
     "jmespath>=1.0.1",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "black>=26,<27",
+    "flake8>=7,<8",
+    "isort>=6,<7",
+    "pip-audit>=2.10,<3",
+    "pytest>=8,<9",
+]
+
 [project.scripts]
 finops = "finops_lite.cli:main"
 finops-lite = "finops_lite.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/dianuhs/finops-lite"
-Repository = "https://github.com/dianuhs/finops-lite.git"
-"Bug Tracker" = "https://github.com/dianuhs/finops-lite/issues"
+Homepage = "https://github.com/cloudandcapital/finops-lite"
+Repository = "https://github.com/cloudandcapital/finops-lite.git"
+"Bug Tracker" = "https://github.com/cloudandcapital/finops-lite/issues"
 
 [tool.hatch.version]
 path = "finops_lite/__init__.py"
+
+[tool.black]
+target-version = ["py310"]

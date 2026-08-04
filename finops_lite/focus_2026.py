@@ -1,7 +1,10 @@
 """
-FOCUS 2026 export and validator for FinOps Lite.
+Deprecated experimental export and validator retained for compatibility.
 
-FOCUS (FinOps Open Cost and Usage Specification) 2026 extends FOCUS 1.0 with:
+This module was previously described as "FOCUS 2026." That name is not an
+official FinOps Foundation specification version. New integrations must not
+use this module as evidence of FOCUS conformance. It remains temporarily so
+existing users can migrate without an abrupt import/command break.
   - Mandatory billing account and sub-account columns
   - Standardized ChargeCategory / ChargeClass taxonomy
   - EffectiveCost, ListCost, ContractedCost alongside BilledCost
@@ -14,18 +17,17 @@ FOCUS (FinOps Open Cost and Usage Specification) 2026 extends FOCUS 1.0 with:
   - ChargeClass: "Correction" for retroactive adjustments (new in 2026)
   - InvoiceIssuerName (for reseller / marketplace scenarios)
 
-Reference: https://focus.finops.org  (FOCUS 2026 working draft)
+Official specifications: https://focus.finops.org/focus-specification/
 """
 
 from __future__ import annotations
 
 import csv
 import sys
-from dataclasses import dataclass, field, fields
-from datetime import date, datetime, timezone
+from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, TextIO
-
 
 # ── FOCUS 2026 column names ───────────────────────────────────────────────────
 
@@ -53,10 +55,10 @@ FOCUS_2026_COLUMNS = [
     "ChargePeriodStart",
     "ChargePeriodEnd",
     # Charge classification
-    "ChargeCategory",      # Usage | Purchase | Tax | Credit | Adjustment
-    "ChargeClass",         # Standard | Correction  (NEW in 2026)
+    "ChargeCategory",  # Usage | Purchase | Tax | Credit | Adjustment
+    "ChargeClass",  # Standard | Correction  (NEW in 2026)
     "ChargeDescription",
-    "ChargeFrequency",     # One-Time | Recurring | Usage-Based
+    "ChargeFrequency",  # One-Time | Recurring | Usage-Based
     # Pricing
     "SkuId",
     "SkuPriceId",
@@ -77,7 +79,7 @@ FOCUS_2026_COLUMNS = [
     # Commitment discounts
     "CommitmentDiscountId",
     "CommitmentDiscountName",
-    "CommitmentDiscountType",    # Reserved | Savings-Plan | Committed-Use
+    "CommitmentDiscountType",  # Reserved | Savings-Plan | Committed-Use
     "CommitmentDiscountStatus",  # Used | Unused
     # Capacity reservations
     "CapacityReservationId",
@@ -113,10 +115,11 @@ FOCUS_SCHEMA_VERSION = "2026.0"
 
 # ── FOCUS 2026 record dataclass ───────────────────────────────────────────────
 
+
 @dataclass
 class Focus2026Record:
     """
-    A single normalized FOCUS 2026 billing record.
+    A single record in the deprecated experimental billing schema.
 
     All monetary amounts are Decimal to preserve precision.
     Empty optional strings default to "" (not None) for clean CSV output.
@@ -245,9 +248,10 @@ class Focus2026Record:
 
 # ── FOCUS 2026 exporter ───────────────────────────────────────────────────────
 
+
 def export_focus_2026(records: List[Focus2026Record], file: TextIO = sys.stdout) -> int:
     """
-    Write records to file as FOCUS 2026 CSV.
+    Write records using the deprecated experimental CSV schema.
 
     Returns the number of rows written.
     """
@@ -273,7 +277,7 @@ def from_focus_1_record(
     tags: Dict[str, str] | None = None,
 ) -> Focus2026Record:
     """
-    Convert a FOCUS 1.0-style record to FOCUS 2026.
+    Convert a FOCUS-like record to the deprecated experimental schema.
 
     EffectiveCost defaults to BilledCost when discount detail is unavailable.
     ListCost defaults to BilledCost when list pricing is unavailable.
@@ -309,9 +313,15 @@ def from_focus_1_record(
 
 def _infer_service_category(provider: str, service: str) -> str:
     s = service.lower()
-    if any(w in s for w in ["ec2", "compute", "virtual machine", "instance", "gce", "aks", "gke"]):
+    if any(
+        w in s
+        for w in ["ec2", "compute", "virtual machine", "instance", "gce", "aks", "gke"]
+    ):
         return "Compute"
-    if any(w in s for w in ["rds", "sql", "aurora", "database", "cosmos", "firestore", "bigtable"]):
+    if any(
+        w in s
+        for w in ["rds", "sql", "aurora", "database", "cosmos", "firestore", "bigtable"]
+    ):
         return "Databases"
     if any(w in s for w in ["s3", "storage", "blob", "gcs", "ebs", "efs"]):
         return "Storage"
@@ -348,6 +358,7 @@ def _region_name(region_id: str) -> str:
 
 # ── FOCUS 2026 validator ──────────────────────────────────────────────────────
 
+
 @dataclass
 class ValidationIssue:
     row: int
@@ -375,7 +386,7 @@ class ValidationResult:
     def summary(self) -> str:
         status = "COMPLIANT" if self.compliant else "NON-COMPLIANT"
         return (
-            f"FOCUS 2026 Validation — {status}\n"
+            f"Experimental Schema Validation — {status}\n"
             f"  Rows: {self.total_rows} total, {self.valid_rows} valid\n"
             f"  Issues: {self.error_count} error(s), {self.warning_count} warning(s)"
         )
@@ -383,7 +394,7 @@ class ValidationResult:
 
 def validate_focus_2026_csv(file_path: str) -> ValidationResult:
     """
-    Validate a CSV file against the FOCUS 2026 specification.
+    Validate a CSV file against the deprecated experimental schema.
 
     Checks:
       - Required columns are present
@@ -405,35 +416,51 @@ def validate_focus_2026_csv(file_path: str) -> ValidationResult:
         # Check required columns
         missing = REQUIRED_COLUMNS - headers
         for col in sorted(missing):
-            issues.append(ValidationIssue(
-                row=0, column=col, value="",
-                rule=f"Required column '{col}' is missing from the CSV header",
-                severity="error",
-            ))
+            issues.append(
+                ValidationIssue(
+                    row=0,
+                    column=col,
+                    value="",
+                    rule=f"Required column '{col}' is missing from the CSV header",
+                    severity="error",
+                )
+            )
 
         # Check schema version column presence
         if "x_focus_schema_version" not in headers:
-            issues.append(ValidationIssue(
-                row=0, column="x_focus_schema_version", value="",
-                rule="Column 'x_focus_schema_version' is missing; cannot verify schema version",
-                severity="warning",
-            ))
+            issues.append(
+                ValidationIssue(
+                    row=0,
+                    column="x_focus_schema_version",
+                    value="",
+                    rule="Column 'x_focus_schema_version' is missing; cannot verify schema version",
+                    severity="warning",
+                )
+            )
 
         rows = list(reader)
 
     row_errors: set[int] = set()
 
     for i, row in enumerate(rows, start=2):  # row 1 = header
+
         def issue(col: str, rule: str, severity: str = "error") -> None:
             val = row.get(col, "")
-            issues.append(ValidationIssue(row=i, column=col, value=str(val)[:80], rule=rule, severity=severity))
+            issues.append(
+                ValidationIssue(
+                    row=i, column=col, value=str(val)[:80], rule=rule, severity=severity
+                )
+            )
             if severity == "error":
                 row_errors.add(i)
 
         # ChargeCategory
         cat = row.get("ChargeCategory", "")
         if cat not in VALID_CHARGE_CATEGORIES:
-            issue("ChargeCategory", f"Must be one of {sorted(VALID_CHARGE_CATEGORIES)}, got '{cat}'")
+            issue(
+                "ChargeCategory",
+                f"Must be one of {sorted(VALID_CHARGE_CATEGORIES)}, got '{cat}'",
+            )
 
         # ChargeClass (new in 2026)
         cls_ = row.get("ChargeClass", "")
@@ -454,7 +481,10 @@ def validate_focus_2026_csv(file_path: str) -> ValidationResult:
         if bp_start and bp_end:
             try:
                 if date.fromisoformat(bp_start) > date.fromisoformat(bp_end):
-                    issue("BillingPeriodStart", "BillingPeriodStart must be <= BillingPeriodEnd")
+                    issue(
+                        "BillingPeriodStart",
+                        "BillingPeriodStart must be <= BillingPeriodEnd",
+                    )
             except ValueError:
                 issue("BillingPeriodStart", f"Invalid ISO date: '{bp_start}'")
 
@@ -464,32 +494,47 @@ def validate_focus_2026_csv(file_path: str) -> ValidationResult:
         if cp_start and cp_end:
             try:
                 if date.fromisoformat(cp_start) > date.fromisoformat(cp_end):
-                    issue("ChargePeriodStart", "ChargePeriodStart must be <= ChargePeriodEnd")
+                    issue(
+                        "ChargePeriodStart",
+                        "ChargePeriodStart must be <= ChargePeriodEnd",
+                    )
             except ValueError:
                 issue("ChargePeriodStart", f"Invalid ISO date: '{cp_start}'")
 
         # BillingCurrency — 3-letter ISO
         currency = row.get("BillingCurrency", "")
         if currency and (len(currency) != 3 or not currency.isalpha()):
-            issue("BillingCurrency", f"Expected 3-letter ISO 4217 currency code, got '{currency}'", severity="warning")
+            issue(
+                "BillingCurrency",
+                f"Expected 3-letter ISO 4217 currency code, got '{currency}'",
+                severity="warning",
+            )
 
         # CommitmentDiscountType
         cdt = row.get("CommitmentDiscountType", "")
         if cdt and cdt not in VALID_COMMITMENT_TYPES:
-            issue("CommitmentDiscountType",
-                  f"If set, must be one of {sorted(VALID_COMMITMENT_TYPES - {''})}",
-                  severity="warning")
+            issue(
+                "CommitmentDiscountType",
+                f"If set, must be one of {sorted(VALID_COMMITMENT_TYPES - {''})}",
+                severity="warning",
+            )
 
         # Schema version
         sv = row.get("x_focus_schema_version", "")
         if sv:
             try:
                 if float(sv.split(".")[0]) < 2026:
-                    issue("x_focus_schema_version",
-                          f"Schema version {sv} is older than FOCUS 2026 — expected >= 2026.0",
-                          severity="warning")
+                    issue(
+                        "x_focus_schema_version",
+                        f"Experimental schema version {sv} is older than expected 2026.0",
+                        severity="warning",
+                    )
             except (ValueError, IndexError):
-                issue("x_focus_schema_version", f"Cannot parse schema version '{sv}'", severity="warning")
+                issue(
+                    "x_focus_schema_version",
+                    f"Cannot parse schema version '{sv}'",
+                    severity="warning",
+                )
 
         # BillingAccountId non-empty
         if not row.get("BillingAccountId", "").strip():
@@ -498,7 +543,9 @@ def validate_focus_2026_csv(file_path: str) -> ValidationResult:
     total = len(rows)
     valid = total - len(row_errors)
     compliant = len([i for i in issues if i.severity == "error"]) == 0
-    return ValidationResult(total_rows=total, valid_rows=valid, issues=issues, compliant=compliant)
+    return ValidationResult(
+        total_rows=total, valid_rows=valid, issues=issues, compliant=compliant
+    )
 
 
 def print_validation_report(result: ValidationResult, verbose: bool = False) -> None:
@@ -517,4 +564,6 @@ def print_validation_report(result: ValidationResult, verbose: bool = False) -> 
                 loc = f"row {iss.row}" if iss.row > 0 else "header"
                 print(f"    [{loc}] {iss.column}: {iss.rule}")
             if len(issue_list) > 10 and not verbose:
-                print(f"    … and {len(issue_list) - 10} more (use --verbose to see all)")
+                print(
+                    f"    … and {len(issue_list) - 10} more (use --verbose to see all)"
+                )

@@ -4,6 +4,8 @@ Unit tests for summary payload construction.
 
 from datetime import date
 
+import pytest
+
 from finops_lite.summary import build_cost_summary
 
 
@@ -68,6 +70,7 @@ def test_build_cost_summary_structure_and_math():
         "change_pct",
         "top_groups",
         "daily_trend",
+        "daily_groups",
     }
     assert expected_keys.issubset(summary.keys())
     assert summary["schema_version"] == "1.0"
@@ -89,6 +92,38 @@ def test_build_cost_summary_structure_and_math():
         "2026-01-02",
         "2026-01-03",
     ]
+    assert (
+        sum(
+            row["cost"]
+            for row in summary["daily_groups"]
+            if row["date"] == "2026-01-01"
+        )
+        == 150.0
+    )
+
+
+def test_build_cost_summary_rejects_missing_day_instead_of_emitting_zero():
+    current = {"ResultsByTime": [_make_day("2026-01-01", 10, [("AmazonEC2", 10)])]}
+    with pytest.raises(ValueError, match="not observed zero"):
+        build_cost_summary(
+            current,
+            {"ResultsByTime": []},
+            group_by="SERVICE",
+            window_start=date(2026, 1, 1),
+            window_end=date(2026, 1, 2),
+        )
+
+
+def test_build_cost_summary_rejects_non_reconciling_daily_groups():
+    current = {"ResultsByTime": [_make_day("2026-01-01", 10, [("AmazonEC2", 9)])]}
+    with pytest.raises(ValueError, match="Daily service breakdown does not reconcile"):
+        build_cost_summary(
+            current,
+            {"ResultsByTime": []},
+            group_by="SERVICE",
+            window_start=date(2026, 1, 1),
+            window_end=date(2026, 1, 1),
+        )
 
 
 def test_build_cost_summary_change_pct_null_when_previous_zero():
@@ -113,3 +148,34 @@ def test_build_cost_summary_change_pct_null_when_previous_zero():
 
     assert summary["previous_total_cost"] == 0.0
     assert summary["change_pct"] is None
+
+
+def test_build_cost_summary_rejects_malformed_money_instead_of_zero():
+    current = {
+        "ResultsByTime": [
+            _make_day("2026-01-01", "not-a-number", [("AmazonEC2", 10)]),
+        ]
+    }
+    with pytest.raises(ValueError, match="Invalid numeric value"):
+        build_cost_summary(
+            current,
+            {"ResultsByTime": []},
+            group_by="SERVICE",
+            window_start=date(2026, 1, 1),
+            window_end=date(2026, 1, 1),
+        )
+
+
+def test_build_cost_summary_can_include_all_groups_for_reconciliation():
+    groups = [(f"Service{i}", i + 1) for i in range(12)]
+    total = sum(amount for _, amount in groups)
+    summary = build_cost_summary(
+        {"ResultsByTime": [_make_day("2026-01-01", total, groups)]},
+        {"ResultsByTime": []},
+        group_by="SERVICE",
+        window_start=date(2026, 1, 1),
+        window_end=date(2026, 1, 1),
+        top_n=None,
+    )
+    assert len(summary["top_groups"]) == 12
+    assert sum(item["cost"] for item in summary["top_groups"]) == summary["total_cost"]
