@@ -5,19 +5,24 @@ Helpers for building compact dashboard summaries.
 from __future__ import annotations
 
 from datetime import date, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Optional
 
 
-def _to_decimal(value: Any) -> Decimal:
-    if value is None:
-        return Decimal("0")
+def _to_decimal(value: Any, *, field: str = "amount") -> Decimal:
+    """Parse a finite decimal without silently coercing invalid billing data to zero."""
+    if value is None or value == "":
+        raise ValueError(f"Missing numeric value for {field}")
     if isinstance(value, Decimal):
-        return value
-    try:
-        return Decimal(str(value))
-    except Exception:
-        return Decimal("0")
+        result = value
+    else:
+        try:
+            result = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid numeric value for {field}: {value!r}") from exc
+    if not result.is_finite():
+        raise ValueError(f"Non-finite numeric value for {field}: {value!r}")
+    return result
 
 
 def _round_money(amount: Decimal) -> float:
@@ -48,14 +53,16 @@ def _period_total(time_period: Dict[str, Any]) -> Decimal:
     total = time_period.get("Total") or {}
     blended = total.get("BlendedCost") or {}
     if blended.get("Amount") is not None:
-        return _to_decimal(blended.get("Amount", "0"))
+        return _to_decimal(blended.get("Amount"), field="Total.BlendedCost.Amount")
 
     # Fall back to summing group costs.
     total_amount = Decimal("0")
     for group in time_period.get("Groups", []) or []:
         metrics = group.get("Metrics") or {}
         blended = metrics.get("BlendedCost") or {}
-        total_amount += _to_decimal(blended.get("Amount", "0"))
+        total_amount += _to_decimal(
+            blended.get("Amount"), field="Groups[].Metrics.BlendedCost.Amount"
+        )
 
     return total_amount
 
@@ -79,9 +86,32 @@ def _group_totals(cost_data: Dict[str, Any]) -> Dict[str, Decimal]:
             group_key = keys[0] if keys else "Unknown"
             metrics = group.get("Metrics") or {}
             blended = metrics.get("BlendedCost") or {}
-            amount = _to_decimal(blended.get("Amount", "0"))
+            amount = _to_decimal(
+                blended.get("Amount"), field="Groups[].Metrics.BlendedCost.Amount"
+            )
             totals[group_key] = totals.get(group_key, Decimal("0")) + amount
     return totals
+
+
+def _daily_group_totals(cost_data: Dict[str, Any]) -> Dict[str, Dict[str, Decimal]]:
+    daily: Dict[str, Dict[str, Decimal]] = {}
+    for time_period in cost_data.get("ResultsByTime", []) or []:
+        date_str = (time_period.get("TimePeriod") or {}).get("Start")
+        if not date_str:
+            raise ValueError("Missing ResultsByTime[].TimePeriod.Start")
+        groups: Dict[str, Decimal] = {}
+        for group in time_period.get("Groups", []) or []:
+            keys = group.get("Keys") or []
+            if not keys or not str(keys[0]).strip():
+                raise ValueError("Missing ResultsByTime[].Groups[].Keys[0]")
+            name = str(keys[0])
+            amount = _to_decimal(
+                ((group.get("Metrics") or {}).get("BlendedCost") or {}).get("Amount"),
+                field="Groups[].Metrics.BlendedCost.Amount",
+            )
+            groups[name] = groups.get(name, Decimal("0")) + amount
+        daily[date_str] = groups
+    return daily
 
 
 def build_cost_summary(
@@ -92,7 +122,7 @@ def build_cost_summary(
     window_start: date,
     window_end: date,
     schema_version: str = "1.0",
-    top_n: int = 10,
+    top_n: Optional[int] = 10,
 ) -> Dict[str, Any]:
     """
     Build a compact dashboard summary from Cost Explorer responses.
@@ -102,6 +132,7 @@ def build_cost_summary(
     currency = _extract_currency(current_data)
 
     current_totals = _daily_totals(current_data)
+    daily_group_totals = _daily_group_totals(current_data)
     previous_totals = _daily_totals(previous_data)
 
     total_cost_decimal = sum(current_totals.values(), Decimal("0"))
@@ -121,9 +152,9 @@ def build_cost_summary(
     previous_total_value = _round_money(previous_total_decimal)
 
     top_groups: List[Dict[str, Any]] = []
-    for group, cost in sorted(
-        group_totals.items(), key=lambda item: item[1], reverse=True
-    )[:top_n]:
+    sorted_groups = sorted(group_totals.items(), key=lambda item: item[1], reverse=True)
+    selected_groups = sorted_groups if top_n is None else sorted_groups[:top_n]
+    for group, cost in selected_groups:
         pct_of_total = (
             _round_pct((cost / total_cost_decimal) * Decimal("100"))
             if total_cost_decimal > 0
@@ -138,11 +169,24 @@ def build_cost_summary(
         )
 
     daily_trend: List[Dict[str, Any]] = []
+    daily_groups: List[Dict[str, Any]] = []
     cursor = window_start
     while cursor <= window_end:
         date_str = cursor.isoformat()
-        daily_cost = _round_money(current_totals.get(date_str, Decimal("0")))
+        if date_str not in current_totals:
+            raise ValueError(
+                f"Missing Cost Explorer result for {date_str}; missing billing data is not observed zero"
+            )
+        daily_cost_decimal = current_totals[date_str]
+        group_sum = sum(daily_group_totals.get(date_str, {}).values(), Decimal("0"))
+        if abs(group_sum - daily_cost_decimal) > Decimal("0.01"):
+            raise ValueError(
+                f"Daily service breakdown does not reconcile for {date_str}: groups={group_sum} total={daily_cost_decimal}"
+            )
+        daily_cost = _round_money(daily_cost_decimal)
         daily_trend.append({"date": date_str, "cost": daily_cost})
+        for group, cost in sorted(daily_group_totals.get(date_str, {}).items()):
+            daily_groups.append({"date": date_str, "group": group, "cost": _round_money(cost)})
         cursor += timedelta(days=1)
 
     return {
@@ -155,4 +199,5 @@ def build_cost_summary(
         "change_pct": change_pct,
         "top_groups": top_groups,
         "daily_trend": daily_trend,
+        "daily_groups": daily_groups,
     }

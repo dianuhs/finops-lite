@@ -1,7 +1,10 @@
 """
-FOCUS 2026 export and validator for FinOps Lite.
+Deprecated experimental export and validator retained for compatibility.
 
-FOCUS (FinOps Open Cost and Usage Specification) 2026 extends FOCUS 1.0 with:
+This module was previously described as "FOCUS 2026." That name is not an
+official FinOps Foundation specification version. New integrations must not
+use this module as evidence of FOCUS conformance. It remains temporarily so
+existing users can migrate without an abrupt import/command break.
   - Mandatory billing account and sub-account columns
   - Standardized ChargeCategory / ChargeClass taxonomy
   - EffectiveCost, ListCost, ContractedCost alongside BilledCost
@@ -14,7 +17,7 @@ FOCUS (FinOps Open Cost and Usage Specification) 2026 extends FOCUS 1.0 with:
   - ChargeClass: "Correction" for retroactive adjustments (new in 2026)
   - InvoiceIssuerName (for reseller / marketplace scenarios)
 
-Reference: https://focus.finops.org  (FOCUS 2026 working draft)
+Official specifications: https://focus.finops.org/focus-specification/
 """
 
 from __future__ import annotations
@@ -116,7 +119,7 @@ FOCUS_SCHEMA_VERSION = "2026.0"
 @dataclass
 class Focus2026Record:
     """
-    A single normalized FOCUS 2026 billing record.
+    A single record in the deprecated experimental billing schema.
 
     All monetary amounts are Decimal to preserve precision.
     Empty optional strings default to "" (not None) for clean CSV output.
@@ -247,7 +250,7 @@ class Focus2026Record:
 
 def export_focus_2026(records: List[Focus2026Record], file: TextIO = sys.stdout) -> int:
     """
-    Write records to file as FOCUS 2026 CSV.
+    Write records using the deprecated experimental CSV schema.
 
     Returns the number of rows written.
     """
@@ -273,7 +276,7 @@ def from_focus_1_record(
     tags: Dict[str, str] | None = None,
 ) -> Focus2026Record:
     """
-    Convert a FOCUS 1.0-style record to FOCUS 2026.
+    Convert a FOCUS-like record to the deprecated experimental schema.
 
     EffectiveCost defaults to BilledCost when discount detail is unavailable.
     ListCost defaults to BilledCost when list pricing is unavailable.
@@ -375,7 +378,7 @@ class ValidationResult:
     def summary(self) -> str:
         status = "COMPLIANT" if self.compliant else "NON-COMPLIANT"
         return (
-            f"FOCUS 2026 Validation — {status}\n"
+            f"Experimental Schema Validation — {status}\n"
             f"  Rows: {self.total_rows} total, {self.valid_rows} valid\n"
             f"  Issues: {self.error_count} error(s), {self.warning_count} warning(s)"
         )
@@ -383,7 +386,7 @@ class ValidationResult:
 
 def validate_focus_2026_csv(file_path: str) -> ValidationResult:
     """
-    Validate a CSV file against the FOCUS 2026 specification.
+    Validate a CSV file against the deprecated experimental schema.
 
     Checks:
       - Required columns are present
@@ -486,7 +489,7 @@ def validate_focus_2026_csv(file_path: str) -> ValidationResult:
             try:
                 if float(sv.split(".")[0]) < 2026:
                     issue("x_focus_schema_version",
-                          f"Schema version {sv} is older than FOCUS 2026 — expected >= 2026.0",
+                          f"Experimental schema version {sv} is older than expected 2026.0",
                           severity="warning")
             except (ValueError, IndexError):
                 issue("x_focus_schema_version", f"Cannot parse schema version '{sv}'", severity="warning")

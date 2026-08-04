@@ -70,7 +70,6 @@ class CacheManager:
             silent: Suppress user-facing cache chatter when True
         """
         self.cache_dir = cache_dir or Path.home() / ".finops" / "cache"
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.max_cache_size_mb = max_cache_size_mb
         self.silent = silent
         self.cache_file = self.cache_dir / "api_cache.json"
@@ -143,6 +142,7 @@ class CacheManager:
     def _save_cache(self):
         """Save cache to disk."""
         try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
             # Clean expired entries before saving
             self._clean_expired_entries(self._cache)
 

@@ -22,6 +22,11 @@ class TestCLIBasics:
         assert result.exit_code == 0
         assert "FinOps Lite" in result.output
 
+    def test_version_option(self):
+        result = CliRunner().invoke(cli, ["--version"])
+        assert result.exit_code == 0
+        assert result.output.strip() == "finops-lite, version 0.2.0"
+
     def test_help_command(self):
         """Test help command."""
         runner = CliRunner()
