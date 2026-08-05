@@ -32,13 +32,15 @@ What is not yet claimed:
 - Verified savings or automated remediation
 - Direct production feeding into Cloud Cost Guard
 
-## Install
+The public demo is credential-free and uses entirely illustrative data.
+
+## Install the released CLI
 
 ```bash
-pipx install "git+https://github.com/cloudandcapital/finops-lite.git"
+pipx install "git+https://github.com/cloudandcapital/finops-lite.git@v0.3.0"
 ```
 
-For development:
+For development from the default branch:
 
 ```bash
 git clone https://github.com/cloudandcapital/finops-lite.git
@@ -54,6 +56,9 @@ Python 3.10 or newer is required.
 ```bash
 finops --no-cache ccac --demo --output finops-lite-result.json
 ```
+
+The command writes `finops-lite-result.json`; rerunning with the same path
+replaces that explicitly named local file.
 
 The cross-repository acceptance suite validates this artifact against the shared CCAC reference schemas. The `ccac validate` command is available to contributors who install the separate Cloud & Capital CCAC reference package; it is not required to run this demo.
 
