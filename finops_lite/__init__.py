@@ -5,7 +5,7 @@ A professional-grade command-line tool that brings AWS cost management
 directly to your terminal.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__ = "Diana"
 __email__ = "diana@cloudandcapital.com"
 
