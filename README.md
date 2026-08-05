@@ -139,8 +139,12 @@ The v0.2 illustrative acceptance run now connects this result through Watchdog a
 |---|---|
 | FinOps Lite | `0.2.x` |
 | CCAC | `ccac/1.0.0` |
-| FinOps Watchdog | `0.2.x` |
+| FinOps Watchdog | `0.4.x` |
 | Tech Spend Command Center | `0.2.x` |
+
+FinOps Lite remains `0.2.0`, while FinOps Watchdog is independently versioned
+at `0.4.x`. Compatible tools do not need identical application package
+versions; their shared interchange contract remains `ccac/1.0.0`.
 
 ## License
 
