@@ -133,16 +133,16 @@ billing export or illustrative source
   -> Lumen
 ```
 
-The v0.2 illustrative acceptance run now connects this result through Watchdog and Tech Spend Command Center into a contract-valid trusted report. Cloud Cost Guard remains unchanged until its downstream adapter is reviewed separately.
+The v0.3 illustrative acceptance run connects this result through Watchdog and Tech Spend Command Center into a contract-valid trusted report. Cloud Cost Guard remains unchanged until its downstream adapter is reviewed separately.
 
 | Component | Compatible version |
 |---|---|
-| FinOps Lite | `0.2.x` |
+| FinOps Lite | `0.3.x` |
 | CCAC | `ccac/1.0.0` |
 | FinOps Watchdog | `0.4.x` |
 | Tech Spend Command Center | `0.2.x` |
 
-FinOps Lite remains `0.2.0`, while FinOps Watchdog is independently versioned
+FinOps Lite is `0.3.x`, while FinOps Watchdog is independently versioned
 at `0.4.x`. Compatible tools do not need identical application package
 versions; their shared interchange contract remains `ccac/1.0.0`.
 

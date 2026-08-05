@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.2.0 — 2026-08-04
+## 0.3.0 — Unreleased
+
+Version 0.3.0 is the first release of the audited canonical CCAC pipeline
+implementation. The existing public `v0.2.0` tag and January 2026 GitHub
+release predate this implementation, and the package at that tag internally
+declared version `0.1.0`. Advancing to `0.3.0` preserves release chronology
+without rewriting historical tags or releases and does not change the already
+approved financial or analytical behavior.
 
 - Add a standard `finops-lite --version` installation smoke check.
 - Add deterministic `finops ccac --demo` and real AWS `finops ccac` output conforming to `ccac/1.0.0`.
