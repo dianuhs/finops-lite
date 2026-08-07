@@ -33,67 +33,80 @@ def _round_pct(value: Decimal) -> float:
     return float(value.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
 
 
-def _extract_currency(cost_data: Dict[str, Any]) -> str:
+def _extract_currency(cost_data: Dict[str, Any], metric_name: str) -> str:
+    observed: set[str] = set()
     for time_period in cost_data.get("ResultsByTime", []) or []:
         total = time_period.get("Total", {})
-        blended = total.get("BlendedCost") if total else None
-        if blended and blended.get("Unit"):
-            return blended["Unit"]
+        metric = total.get(metric_name) if total else None
+        if metric and metric.get("Unit"):
+            observed.add(str(metric["Unit"]))
 
         for group in time_period.get("Groups", []) or []:
             metrics = group.get("Metrics") or {}
-            blended = metrics.get("BlendedCost") or {}
-            if blended.get("Unit"):
-                return blended["Unit"]
+            metric = metrics.get(metric_name) or {}
+            if metric.get("Unit"):
+                observed.add(str(metric["Unit"]))
 
+    if metric_name == "NetUnblendedCost":
+        if not observed:
+            raise ValueError("Missing currency for AWS Cost Explorer NetUnblendedCost")
+        if len(observed) != 1:
+            raise ValueError(
+                f"Mixed currency for AWS Cost Explorer NetUnblendedCost: {sorted(observed)}"
+            )
+        return next(iter(observed))
+    if observed:
+        return next(iter(observed))
     return "USD"
 
 
-def _period_total(time_period: Dict[str, Any]) -> Decimal:
+def _period_total(time_period: Dict[str, Any], metric_name: str) -> Decimal:
     total = time_period.get("Total") or {}
-    blended = total.get("BlendedCost") or {}
-    if blended.get("Amount") is not None:
-        return _to_decimal(blended.get("Amount"), field="Total.BlendedCost.Amount")
+    metric = total.get(metric_name) or {}
+    if metric.get("Amount") is not None:
+        return _to_decimal(metric.get("Amount"), field=f"Total.{metric_name}.Amount")
 
     # Fall back to summing group costs.
     total_amount = Decimal("0")
     for group in time_period.get("Groups", []) or []:
         metrics = group.get("Metrics") or {}
-        blended = metrics.get("BlendedCost") or {}
+        metric = metrics.get(metric_name) or {}
         total_amount += _to_decimal(
-            blended.get("Amount"), field="Groups[].Metrics.BlendedCost.Amount"
+            metric.get("Amount"), field=f"Groups[].Metrics.{metric_name}.Amount"
         )
 
     return total_amount
 
 
-def _daily_totals(cost_data: Dict[str, Any]) -> Dict[str, Decimal]:
+def _daily_totals(cost_data: Dict[str, Any], metric_name: str) -> Dict[str, Decimal]:
     totals: Dict[str, Decimal] = {}
     for time_period in cost_data.get("ResultsByTime", []) or []:
         time_info = time_period.get("TimePeriod", {}) or {}
         date_str = time_info.get("Start")
         if not date_str:
             continue
-        totals[date_str] = _period_total(time_period)
+        totals[date_str] = _period_total(time_period, metric_name)
     return totals
 
 
-def _group_totals(cost_data: Dict[str, Any]) -> Dict[str, Decimal]:
+def _group_totals(cost_data: Dict[str, Any], metric_name: str) -> Dict[str, Decimal]:
     totals: Dict[str, Decimal] = {}
     for time_period in cost_data.get("ResultsByTime", []) or []:
         for group in time_period.get("Groups", []) or []:
             keys = group.get("Keys") or ["Unknown"]
             group_key = keys[0] if keys else "Unknown"
             metrics = group.get("Metrics") or {}
-            blended = metrics.get("BlendedCost") or {}
+            metric = metrics.get(metric_name) or {}
             amount = _to_decimal(
-                blended.get("Amount"), field="Groups[].Metrics.BlendedCost.Amount"
+                metric.get("Amount"), field=f"Groups[].Metrics.{metric_name}.Amount"
             )
             totals[group_key] = totals.get(group_key, Decimal("0")) + amount
     return totals
 
 
-def _daily_group_totals(cost_data: Dict[str, Any]) -> Dict[str, Dict[str, Decimal]]:
+def _daily_group_totals(
+    cost_data: Dict[str, Any], metric_name: str
+) -> Dict[str, Dict[str, Decimal]]:
     daily: Dict[str, Dict[str, Decimal]] = {}
     for time_period in cost_data.get("ResultsByTime", []) or []:
         date_str = (time_period.get("TimePeriod") or {}).get("Start")
@@ -106,8 +119,8 @@ def _daily_group_totals(cost_data: Dict[str, Any]) -> Dict[str, Dict[str, Decima
                 raise ValueError("Missing ResultsByTime[].Groups[].Keys[0]")
             name = str(keys[0])
             amount = _to_decimal(
-                ((group.get("Metrics") or {}).get("BlendedCost") or {}).get("Amount"),
-                field="Groups[].Metrics.BlendedCost.Amount",
+                ((group.get("Metrics") or {}).get(metric_name) or {}).get("Amount"),
+                field=f"Groups[].Metrics.{metric_name}.Amount",
             )
             groups[name] = groups.get(name, Decimal("0")) + amount
         daily[date_str] = groups
@@ -123,17 +136,20 @@ def build_cost_summary(
     window_end: date,
     schema_version: str = "1.0",
     top_n: Optional[int] = 10,
+    metric_name: str = "BlendedCost",
 ) -> Dict[str, Any]:
     """
     Build a compact dashboard summary from Cost Explorer responses.
 
     If previous_total_cost is zero, change_pct is returned as None.
     """
-    currency = _extract_currency(current_data)
+    if metric_name not in {"BlendedCost", "NetUnblendedCost"}:
+        raise ValueError(f"Unsupported AWS Cost Explorer metric: {metric_name}")
+    currency = _extract_currency(current_data, metric_name)
 
-    current_totals = _daily_totals(current_data)
-    daily_group_totals = _daily_group_totals(current_data)
-    previous_totals = _daily_totals(previous_data)
+    current_totals = _daily_totals(current_data, metric_name)
+    daily_group_totals = _daily_group_totals(current_data, metric_name)
+    previous_totals = _daily_totals(previous_data, metric_name)
 
     total_cost_decimal = sum(current_totals.values(), Decimal("0"))
     previous_total_decimal = sum(previous_totals.values(), Decimal("0"))
@@ -147,7 +163,7 @@ def build_cost_summary(
     else:
         change_pct = None
 
-    group_totals = _group_totals(current_data)
+    group_totals = _group_totals(current_data, metric_name)
     total_cost_value = _round_money(total_cost_decimal)
     previous_total_value = _round_money(previous_total_decimal)
 
@@ -191,7 +207,7 @@ def build_cost_summary(
             )
         cursor += timedelta(days=1)
 
-    return {
+    result = {
         "schema_version": schema_version,
         "currency": currency,
         "group_by": group_by,
@@ -203,3 +219,6 @@ def build_cost_summary(
         "daily_trend": daily_trend,
         "daily_groups": daily_groups,
     }
+    if metric_name != "BlendedCost":
+        result["aws_cost_metric"] = metric_name
+    return result

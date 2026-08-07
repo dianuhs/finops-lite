@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -64,6 +67,95 @@ def test_ccac_demo_writes_payload_only_to_file(tmp_path):
     assert json.loads(target.read_text())["document_type"] == "tool_result"
 
 
+def test_explicit_1_0_preserves_legacy_total():
+    result = CliRunner().invoke(
+        cli, ["--no-cache", "ccac", "--demo", "--contract-version", "1.0.0"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["contract"] == "ccac/1.0.0"
+    assert any(metric["id"] == "metric.cloud.total" for metric in payload["metrics"])
+    assert not any("accounting_boundary" in metric for metric in payload["metrics"])
+
+
+def test_1_1_demo_emits_one_eligible_canonical_cloud_scope():
+    result = CliRunner().invoke(
+        cli, ["--no-cache", "ccac", "--demo", "--contract-version", "1.1.0"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    canonical = [
+        metric
+        for metric in payload["metrics"]
+        if metric.get("accounting_boundary", {}).get("relationship")
+        == "canonical_scope_spend"
+    ]
+    assert payload["contract"] == "ccac/1.1.0"
+    assert len(canonical) == 1
+    metric = canonical[0]
+    assert metric["id"] == "metric.tech-spend.scope.cloud"
+    assert metric["value"] == 2194.0
+    assert metric["currency"] == "USD"
+    assert metric["period"] == payload["period"]
+    assert metric["evidence_ids"] == ["evidence.finops-lite.cost-summary"]
+    assert not any(item["id"] == "metric.cloud.total" for item in payload["metrics"])
+    assert metric["accounting_boundary"] == {
+        "relationship": "canonical_scope_spend",
+        "scope": "cloud",
+        "canonical_owner": "finops-lite",
+        "source_channel": "cloud_provider_billing",
+        "cost_basis": "net_cost",
+        "currency_minor_unit": 0.01,
+        "inclusion_rules": [
+            "Cloud-provider-billed services, including provider-billed native AI, present in the authoritative AWS Cost Explorer summary."
+        ],
+        "exclusion_rules": [
+            "Direct AI-vendor billing and SaaS invoice or entitlement charges outside cloud-provider billing."
+        ],
+        "coverage": "complete",
+        "overlap": {
+            "disposition": "resolved",
+            "treatment": "Provider-billed native AI remains in Cloud; direct AI-vendor and SaaS billing channels are excluded.",
+        },
+        "cross_scope_treatments": {
+            "provider_billed_ai": "included",
+            "direct_ai_vendor": "excluded",
+        },
+        "component_treatments": {
+            "credits": "included",
+            "taxes": "included",
+            "adjustments": "included",
+            "shared_services": "included",
+        },
+        "allocation_of_metric_id": None,
+        "total_eligible": True,
+        "eligibility_reason": "The illustrative scenario declares AWS as its sole Cloud billing source; the unfiltered reconciled NetUnblendedCost summary covers the full scenario.",
+    }
+
+
+def test_1_1_cli_file_is_deterministic_and_passes_released_ccac(tmp_path):
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+    runner = CliRunner()
+    args = ["--no-cache", "ccac", "--demo", "--contract-version", "1.1.0"]
+    for target in (first, second):
+        result = runner.invoke(cli, [*args, "--output", str(target)])
+        assert result.exit_code == 0, result.output
+    assert first.read_bytes() == second.read_bytes()
+
+    if os.environ.get("REQUIRE_CCAC_RELEASE_VALIDATION") != "1":
+        pytest.skip(
+            "released CCAC acceptance validator is enabled in CI/release verification"
+        )
+    validation = subprocess.run(
+        [sys.executable, "-m", "ccac.cli", "validate", str(first)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert validation.returncode == 0, validation.stdout + validation.stderr
+
+
 def test_ccac_real_mode_uses_complete_summary(monkeypatch):
     seen = {}
 
@@ -93,6 +185,68 @@ def test_ccac_real_mode_uses_complete_summary(monkeypatch):
     assert payload["mode"] == "real"
     assert payload["inputs"][0]["source_type"] == "aws_cost_explorer_api"
     assert payload["inputs"][0]["access"] == "external_read_only"
+
+
+def test_ccac_real_1_1_uses_net_unblended_cost_and_is_partial(monkeypatch):
+    seen = {}
+
+    def fake_run_summarize(*args, **kwargs):
+        seen.update(kwargs)
+        summary = illustrative_summary()
+        summary["aws_cost_metric"] = "NetUnblendedCost"
+        return summary
+
+    monkeypatch.setattr(cli_module, "run_summarize", fake_run_summarize)
+    result = CliRunner().invoke(
+        cli,
+        [
+            "--no-cache",
+            "ccac",
+            "--contract-version",
+            "1.1.0",
+            "--start",
+            "2026-07-01",
+            "--end",
+            "2026-07-21",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert seen["cost_metric"] == "NetUnblendedCost"
+    payload = json.loads(result.output)
+    metric = next(item for item in payload["metrics"] if "accounting_boundary" in item)
+    assert metric["accounting_boundary"]["coverage"] == "partial"
+    assert metric["accounting_boundary"]["total_eligible"] is False
+    assert "Azure" in metric["accounting_boundary"]["eligibility_reason"]
+
+
+def test_ccac_real_1_1_refuses_blended_cost_fallback():
+    with pytest.raises(CCACBuildError, match="no fallback"):
+        build_ccac_result(
+            illustrative_summary(),
+            mode="real",
+            source_type="aws_cost_explorer_api",
+            source_version="2017-10-25",
+            contract_version="1.1.0",
+        )
+
+
+def test_ccac_1_1_rejects_unsupported_currency():
+    summary = illustrative_summary()
+    summary["currency"] = "JPY"
+    with pytest.raises(CCACBuildError, match="supports USD only"):
+        build_ccac_result(
+            summary,
+            mode="illustrative",
+            source_type="fixture",
+            source_version="1.0",
+            contract_version="1.1.0",
+        )
+
+
+def test_unsupported_contract_selection_fails_clearly():
+    result = CliRunner().invoke(cli, ["ccac", "--demo", "--contract-version", "2.0.0"])
+    assert result.exit_code == 2
+    assert "Invalid value for '--contract-version'" in result.output
 
 
 def test_ccac_rejects_non_reconciling_service_breakdown():

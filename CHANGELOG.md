@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — Unreleased
+
+- Preserve `ccac/1.0.0` as the default and add explicit 1.0/1.1 contract selection.
+- Emit exactly one canonical Cloud scope metric for `ccac/1.1.0`.
+- Use AWS Cost Explorer `NetUnblendedCost` for real 1.1 output without a blended-cost fallback.
+- Mark real AWS-only Cloud coverage partial and ineligible for an all-in technology-spend total.
+- Validate deterministic illustrative 1.1 output with the released CCAC 0.2.0 wheel.
+
 ## 0.3.0 — Unreleased
 
 Version 0.3.0 is the first release of the audited canonical CCAC pipeline

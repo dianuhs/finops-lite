@@ -12,7 +12,7 @@ from typing import Any, Mapping
 
 from . import __version__
 
-CONTRACT_VERSION = "ccac/1.0.0"
+SUPPORTED_CONTRACT_VERSIONS = {"1.0.0", "1.1.0"}
 AWS_COST_EXPLORER_API_VERSION = "2017-10-25"
 MONEY_QUANTUM = Decimal("0.01")
 
@@ -129,18 +129,30 @@ def build_ccac_result(
     source_version: str,
     run_id: str | None = None,
     generated_at: str | datetime | None = None,
+    contract_version: str = "1.0.0",
 ) -> dict[str, Any]:
     """Build a reconciled CCAC tool_result from a complete FinOps Lite summary."""
     if mode not in {"illustrative", "real"}:
         raise CCACBuildError("mode must be 'illustrative' or 'real'")
     if not source_type or not source_version:
         raise CCACBuildError("source_type and source_version are required")
+    if contract_version not in SUPPORTED_CONTRACT_VERSIONS:
+        raise CCACBuildError(f"Unsupported CCAC contract version: {contract_version}")
     if summary.get("group_by") != "SERVICE":
         raise CCACBuildError("CCAC 0.1 requires group_by=SERVICE")
 
     currency = str(summary.get("currency", ""))
     if not re.fullmatch(r"[A-Z]{3}", currency):
         raise CCACBuildError(f"Invalid ISO currency: {currency!r}")
+    if contract_version == "1.1.0" and currency != "USD":
+        raise CCACBuildError(
+            "CCAC 1.1 Cloud scope currently supports USD only because its currency minor unit is explicitly 0.01"
+        )
+    if contract_version == "1.1.0" and mode == "real":
+        if summary.get("aws_cost_metric") != "NetUnblendedCost":
+            raise CCACBuildError(
+                "Real CCAC 1.1 output requires AWS Cost Explorer NetUnblendedCost; no fallback is permitted"
+            )
     source_window = summary.get("window") or {}
     start = _parse_date(source_window.get("start"), "window.start")
     inclusive_end = _parse_date(source_window.get("end"), "window.end")
@@ -262,19 +274,61 @@ def build_ccac_result(
     evidence_id = "evidence.finops-lite.cost-summary"
     metrics: list[dict[str, Any]] = []
 
-    metrics.append(
-        _metric(
-            metric_id="metric.cloud.total",
-            name="Cloud cost",
-            value=total,
-            currency=currency,
-            basis="observed",
-            additivity="additive",
-            period=period,
-            dimensions={"scope": "cloud", "provider": "aws"},
-            evidence_id=evidence_id,
-        )
+    canonical_metric_id = (
+        "metric.tech-spend.scope.cloud"
+        if contract_version == "1.1.0"
+        else "metric.cloud.total"
     )
+    canonical_metric = _metric(
+        metric_id=canonical_metric_id,
+        name="Cloud cost",
+        value=total,
+        currency=currency,
+        basis="observed",
+        additivity="additive",
+        period=period,
+        dimensions={"scope": "cloud", "provider": "aws"},
+        evidence_id=evidence_id,
+    )
+    if contract_version == "1.1.0":
+        illustrative = mode == "illustrative"
+        canonical_metric["accounting_boundary"] = {
+            "relationship": "canonical_scope_spend",
+            "scope": "cloud",
+            "canonical_owner": "finops-lite",
+            "source_channel": "cloud_provider_billing",
+            "cost_basis": "net_cost",
+            "currency_minor_unit": 0.01,
+            "inclusion_rules": [
+                "Cloud-provider-billed services, including provider-billed native AI, present in the authoritative AWS Cost Explorer summary."
+            ],
+            "exclusion_rules": [
+                "Direct AI-vendor billing and SaaS invoice or entitlement charges outside cloud-provider billing."
+            ],
+            "coverage": "complete" if illustrative else "partial",
+            "overlap": {
+                "disposition": "resolved",
+                "treatment": "Provider-billed native AI remains in Cloud; direct AI-vendor and SaaS billing channels are excluded.",
+            },
+            "cross_scope_treatments": {
+                "provider_billed_ai": "included",
+                "direct_ai_vendor": "excluded",
+            },
+            "component_treatments": {
+                "credits": "included",
+                "taxes": "included",
+                "adjustments": "included",
+                "shared_services": "included",
+            },
+            "allocation_of_metric_id": None,
+            "total_eligible": illustrative,
+            "eligibility_reason": (
+                "The illustrative scenario declares AWS as its sole Cloud billing source; the unfiltered reconciled NetUnblendedCost summary covers the full scenario."
+                if illustrative
+                else "The connected AWS billing view is observed and reconciled but does not prove complete enterprise Cloud coverage across other AWS views, Azure, or Google Cloud."
+            ),
+        }
+    metrics.append(canonical_metric)
     metrics.append(
         _metric(
             metric_id="metric.cloud.previous-total",
@@ -300,8 +354,8 @@ def build_ccac_result(
             period=period,
             dimensions={"scope": "cloud"},
             evidence_id=evidence_id,
-            formula="metric.cloud.total - metric.cloud.previous-total",
-            input_metric_ids=["metric.cloud.total", "metric.cloud.previous-total"],
+            formula=f"{canonical_metric_id} - metric.cloud.previous-total",
+            input_metric_ids=[canonical_metric_id, "metric.cloud.previous-total"],
         )
     )
     if previous == 0:
@@ -312,7 +366,7 @@ def build_ccac_result(
     else:
         change_pct = (change / previous) * Decimal("100")
         change_basis = "calculated"
-        change_formula = "(metric.cloud.total - metric.cloud.previous-total) / metric.cloud.previous-total * 100"
+        change_formula = f"({canonical_metric_id} - metric.cloud.previous-total) / metric.cloud.previous-total * 100"
         unknown_reason = None
     metrics.append(
         _metric(
@@ -326,7 +380,7 @@ def build_ccac_result(
             dimensions={"scope": "cloud"},
             evidence_id=evidence_id,
             formula=change_formula,
-            input_metric_ids=["metric.cloud.total", "metric.cloud.previous-total"],
+            input_metric_ids=[canonical_metric_id, "metric.cloud.previous-total"],
             unknown_reason=unknown_reason,
         )
     )
@@ -400,7 +454,7 @@ def build_ccac_result(
         )
 
     return {
-        "contract": CONTRACT_VERSION,
+        "contract": f"ccac/{contract_version}",
         "document_type": "tool_result",
         "producer": {"name": "finops-lite", "version": __version__},
         "run_id": _run_id(run_id),
@@ -425,9 +479,21 @@ def build_ccac_result(
                     else "customer_confidential"
                 ),
                 "lossy_mapping": True,
-                "mapping_notes": [
-                    "Service-level AWS Cost Explorer summary; not resource-level FOCUS billing rows."
-                ],
+                "mapping_notes": (
+                    [
+                        "AWS Cost Explorer NetUnblendedCost maps to CCAC net_cost; the request has no record-type filter, so returned credits, taxes, adjustments, and shared-service rows remain included.",
+                        "Service-level AWS Cost Explorer summary; not resource-level FOCUS billing rows.",
+                        (
+                            "Illustrative AWS is the sole Cloud billing source for this scenario."
+                            if mode == "illustrative"
+                            else "One connected AWS billing view does not establish complete enterprise Cloud coverage."
+                        ),
+                    ]
+                    if contract_version == "1.1.0"
+                    else [
+                        "Service-level AWS Cost Explorer summary; not resource-level FOCUS billing rows."
+                    ]
+                ),
             }
         ],
         "quality": {"status": "valid", "issues": []},
@@ -439,7 +505,11 @@ def build_ccac_result(
                 "id": evidence_id,
                 "kind": "source_query",
                 "source_ids": [source_id],
-                "description": "Complete service-level AWS Cost Explorer summary with equal-length previous-period comparison.",
+                "description": (
+                    "Complete service-level AWS Cost Explorer NetUnblendedCost summary with no record-type filter and an equal-length previous-period comparison."
+                    if contract_version == "1.1.0"
+                    else "Complete service-level AWS Cost Explorer summary with equal-length previous-period comparison."
+                ),
                 "locator": "canonical-json:summary",
                 "observed_at": generated_timestamp,
                 "content_sha256": source_hash,
@@ -448,6 +518,11 @@ def build_ccac_result(
         "extensions": {
             "finops_lite": {
                 "group_by": "SERVICE",
+                **(
+                    {"aws_cost_metric": "NetUnblendedCost", "aws_filter": None}
+                    if contract_version == "1.1.0"
+                    else {}
+                ),
                 "source_window_end_semantics": "inclusive",
                 "contract_period_end_semantics": "exclusive",
                 "service_metric_ids": service_metric_ids,

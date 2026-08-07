@@ -1062,6 +1062,7 @@ def run_summarize(
     performance_tracker: Optional[PerformanceTracker] = None,
     logger=None,
     top_n: Optional[int] = 10,
+    cost_metric: str = "BlendedCost",
 ) -> dict:
     """
     Build a compact cost baseline summary dict for the given window.
@@ -1085,6 +1086,7 @@ def run_summarize(
         "profile": config.aws.profile,
         "region": config.aws.region,
         "top_n": top_n,
+        "cost_metric": cost_metric,
     }
 
     summary = None
@@ -1102,7 +1104,7 @@ def run_summarize(
             end_dt,
             granularity="DAILY",
             group_by=[group_by],
-            metrics=["BlendedCost"],
+            metrics=[cost_metric],
         )
         if performance_tracker:
             performance_tracker.record_api_call()
@@ -1112,7 +1114,7 @@ def run_summarize(
             prev_end_dt,
             granularity="DAILY",
             group_by=[group_by],
-            metrics=["BlendedCost"],
+            metrics=[cost_metric],
         )
         if performance_tracker:
             performance_tracker.record_api_call()
@@ -1124,6 +1126,7 @@ def run_summarize(
             window_start=start_date,
             window_end=end_date,
             top_n=top_n,
+            metric_name=cost_metric,
         )
 
         if cache_manager:
@@ -1212,6 +1215,13 @@ def summarize(ctx, start, end, group_by):
 
 @cli.command("ccac")
 @click.option(
+    "--contract-version",
+    type=click.Choice(["1.0.0", "1.1.0"], case_sensitive=True),
+    default="1.0.0",
+    show_default=True,
+    help="CCAC contract version to emit.",
+)
+@click.option(
     "--demo",
     is_flag=True,
     help="Use deterministic illustrative data without AWS credentials.",
@@ -1242,8 +1252,10 @@ def summarize(ctx, start, end, group_by):
     help="Write JSON to this file instead of stdout.",
 )
 @click.pass_context
-def ccac_output(ctx, demo, start, end, run_id, generated_at, output_file):
-    """Emit the canonical CCAC 1.0 FinOps Lite tool result."""
+def ccac_output(
+    ctx, demo, start, end, contract_version, run_id, generated_at, output_file
+):
+    """Emit a canonical CCAC FinOps Lite tool result."""
     from .ccac import (
         AWS_COST_EXPLORER_API_VERSION,
         CCACBuildError,
@@ -1280,6 +1292,9 @@ def ccac_output(ctx, demo, start, end, run_id, generated_at, output_file):
                 performance_tracker=ctx.obj.performance_tracker,
                 logger=ctx.obj.logger,
                 top_n=None,
+                cost_metric=(
+                    "NetUnblendedCost" if contract_version == "1.1.0" else "BlendedCost"
+                ),
             )
             mode = "real"
             source_type = "aws_cost_explorer_api"
@@ -1292,6 +1307,7 @@ def ccac_output(ctx, demo, start, end, run_id, generated_at, output_file):
             source_version=source_version,
             run_id=run_id,
             generated_at=generated_at,
+            contract_version=contract_version,
         )
         payload = json.dumps(result, indent=2, sort_keys=True) + "\n"
         if output_file:
