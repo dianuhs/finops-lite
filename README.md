@@ -2,13 +2,13 @@
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Cloud](https://img.shields.io/badge/cloud-AWS-orange)](https://github.com/cloudandcapital/finops-lite)
-[![Contract](https://img.shields.io/badge/CCAC-1.0-blue)](https://github.com/cloudandcapital)
+[![Contract](https://img.shields.io/badge/CCAC-1.0%20%7C%201.1-blue)](https://github.com/cloudandcapital)
 
 FinOps Lite is an open-source AWS cost visibility CLI and the canonical cloud-cost producer for the Cloud & Capital pipeline.
 
 For the complete six-tool demo and roadmap, see [Tech Spend Command Center](https://github.com/cloudandcapital/tech-spend-command-center).
 
-Its first CCAC release reads AWS Cost Explorer, calculates a complete service-level cost summary, reconciles the service and daily views, and emits a versioned `ccac/1.0.0` tool result for downstream analysis.
+FinOps Lite 0.4.0 preserves its `ccac/1.0.0` producer path and adds an explicit `ccac/1.1.0` Cloud accounting-boundary path validated by the released CCAC 0.2.0 reference package.
 
 ## Current scope
 
@@ -57,12 +57,19 @@ Python 3.10 or newer is required.
 finops --no-cache ccac --demo --output finops-lite-result.json
 ```
 
+The default remains `ccac/1.0.0`. Select either supported contract explicitly:
+
+```bash
+finops --no-cache ccac --demo --contract-version 1.0.0 --output finops-lite-result.json
+finops --no-cache ccac --demo --contract-version 1.1.0 --output finops-lite-result.json
+```
+
 The command writes `finops-lite-result.json`; rerunning with the same path
 replaces that explicitly named local file.
 
 The cross-repository acceptance suite validates this artifact against the shared CCAC reference schemas. The `ccac validate` command is available to contributors who install the separate Cloud & Capital CCAC reference package; it is not required to run this demo.
 
-The demo is explicitly labeled `illustrative`, uses a fixed run ID and timestamp, and is byte-for-byte deterministic. It contains 21 consecutive daily observations and one deliberate final-day spend spike so the default FinOps Watchdog detector can be exercised end to end. It passes through the same FinOps Lite CCAC builder used for real summaries.
+The demo is explicitly labeled `illustrative`, declares AWS as the scenario's sole Cloud billing source, uses a fixed run ID and timestamp, and is byte-for-byte deterministic. Its reconciled Cloud value remains USD 2,194.00. It contains 21 consecutive daily observations and one deliberate final-day spend spike so the default FinOps Watchdog detector can be exercised end to end. It passes through the same FinOps Lite CCAC builder used for real summaries.
 
 **Illustrative sample billing data. No customer accounts, credentials, or production resources are connected.**
 
@@ -85,6 +92,7 @@ Generate a canonical result:
 
 ```bash
 finops --no-cache ccac \
+  --contract-version 1.1.0 \
   --start 2026-07-01 \
   --end 2026-07-31 \
   --output finops-lite-result.json
@@ -93,6 +101,12 @@ finops --no-cache ccac \
 `--end` is inclusive at the CLI boundary. The CCAC document converts it to an exclusive period end and records both semantics.
 
 The command retrieves the complete service breakdown rather than truncating it to the top ten. It refuses to emit a canonical result when daily service rows, service totals, daily totals, and the reported total do not reconcile.
+
+The explicit real 1.1 path requests AWS Cost Explorer `NetUnblendedCost`, which AWS defines as cost after discounts, and maps it to CCAC `net_cost`. It does not fall back to `BlendedCost`, and neither current nor previous request passes a charge-type filter. Under Cloud & Capital's technology-spend boundary policy, credits, taxes, adjustments, and shared services are included when AWS returns them in that unfiltered result. The canonical Cloud metric includes provider-billed native AI and excludes direct AI-vendor billing.
+
+The explicit 1.1 demo instead uses a deterministic illustrative net-cost summary modeled for the public scenario. It declares AWS as the scenario's sole illustrative Cloud source; no account or AWS API is queried.
+
+A connected AWS billing view does not prove complete enterprise Cloud coverage. Real 1.1 output therefore preserves the observed AWS value but declares partial coverage and is not eligible for an all-in technology-spend total. Native Azure and Google Cloud billing ingestion remain later work.
 
 ## Other cost commands
 
@@ -142,14 +156,14 @@ The v0.3 illustrative acceptance run connects this result through Watchdog and T
 
 | Component | Compatible version |
 |---|---|
-| FinOps Lite | `0.3.x` |
-| CCAC | `ccac/1.0.0` |
+| FinOps Lite | `0.4.x` |
+| CCAC | `ccac/1.0.0`, `ccac/1.1.0` (CCAC package 0.2.0) |
 | FinOps Watchdog | `0.4.x` |
 | Tech Spend Command Center | `0.2.x` |
 
-FinOps Lite is `0.3.x`, while FinOps Watchdog is independently versioned
+FinOps Lite is `0.4.x`, while FinOps Watchdog is independently versioned
 at `0.4.x`. Compatible tools do not need identical application package
-versions; their shared interchange contract remains `ccac/1.0.0`.
+versions. This PR does not connect Cloud Cost Guard and does not change another producer or consumer.
 
 ## License
 

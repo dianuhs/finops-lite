@@ -9,14 +9,14 @@ import pytest
 from finops_lite.summary import build_cost_summary
 
 
-def _make_day(start_date, total_amount, groups):
+def _make_day(start_date, total_amount, groups, metric_name="BlendedCost"):
     return {
         "TimePeriod": {
             "Start": start_date,
             "End": "unused",
         },
         "Total": {
-            "BlendedCost": {
+            metric_name: {
                 "Amount": str(total_amount),
                 "Unit": "USD",
             }
@@ -25,7 +25,7 @@ def _make_day(start_date, total_amount, groups):
             {
                 "Keys": [group_name],
                 "Metrics": {
-                    "BlendedCost": {
+                    metric_name: {
                         "Amount": str(amount),
                         "Unit": "USD",
                     }
@@ -179,3 +179,127 @@ def test_build_cost_summary_can_include_all_groups_for_reconciliation():
     )
     assert len(summary["top_groups"]) == 12
     assert sum(item["cost"] for item in summary["top_groups"]) == summary["total_cost"]
+
+
+def test_build_cost_summary_uses_only_selected_net_unblended_metric():
+    current = {
+        "ResultsByTime": [
+            _make_day("2026-01-01", 95, [("AmazonEC2", 95)], "NetUnblendedCost")
+        ]
+    }
+    summary = build_cost_summary(
+        current,
+        {
+            "ResultsByTime": [
+                _make_day("2025-12-31", 90, [("AmazonEC2", 90)], "NetUnblendedCost")
+            ]
+        },
+        group_by="SERVICE",
+        window_start=date(2026, 1, 1),
+        window_end=date(2026, 1, 1),
+        metric_name="NetUnblendedCost",
+    )
+    assert summary["total_cost"] == 95.0
+    assert summary["aws_cost_metric"] == "NetUnblendedCost"
+    assert summary["comparison_window"] == {
+        "start": "2025-12-31",
+        "end": "2025-12-31",
+    }
+
+
+def test_build_cost_summary_never_falls_back_to_blended_cost():
+    current = {"ResultsByTime": [_make_day("2026-01-01", 100, [("AmazonEC2", 100)])]}
+    with pytest.raises(ValueError, match="Missing currency"):
+        build_cost_summary(
+            current,
+            {"ResultsByTime": []},
+            group_by="SERVICE",
+            window_start=date(2026, 1, 1),
+            window_end=date(2026, 1, 1),
+            metric_name="NetUnblendedCost",
+        )
+
+
+def test_net_unblended_summary_rejects_mixed_currency():
+    first = _make_day("2026-01-01", 50, [("AmazonEC2", 50)], "NetUnblendedCost")
+    second = _make_day("2026-01-02", 50, [("AmazonEC2", 50)], "NetUnblendedCost")
+    second["Total"]["NetUnblendedCost"]["Unit"] = "EUR"
+    second["Groups"][0]["Metrics"]["NetUnblendedCost"]["Unit"] = "EUR"
+    with pytest.raises(ValueError, match="Mixed currency"):
+        build_cost_summary(
+            {"ResultsByTime": [first, second]},
+            {
+                "ResultsByTime": [
+                    _make_day(
+                        "2025-12-30", 40, [("AmazonEC2", 40)], "NetUnblendedCost"
+                    ),
+                    _make_day(
+                        "2025-12-31", 40, [("AmazonEC2", 40)], "NetUnblendedCost"
+                    ),
+                ]
+            },
+            group_by="SERVICE",
+            window_start=date(2026, 1, 1),
+            window_end=date(2026, 1, 2),
+            metric_name="NetUnblendedCost",
+        )
+
+
+def _net_summary(current, previous, start=date(2026, 1, 1), end=date(2026, 1, 1)):
+    return build_cost_summary(
+        {"ResultsByTime": current},
+        {"ResultsByTime": previous},
+        group_by="SERVICE",
+        window_start=start,
+        window_end=end,
+        metric_name="NetUnblendedCost",
+    )
+
+
+def test_net_unblended_rejects_missing_previous_date():
+    current = [_make_day("2026-01-01", 50, [("EC2", 50)], "NetUnblendedCost")]
+    with pytest.raises(ValueError, match="Incomplete previous-period"):
+        _net_summary(current, [])
+
+
+def test_net_unblended_rejects_duplicate_previous_date():
+    current = [_make_day("2026-01-01", 50, [("EC2", 50)], "NetUnblendedCost")]
+    previous = [
+        _make_day("2025-12-31", 40, [("EC2", 40)], "NetUnblendedCost"),
+        _make_day("2025-12-31", 40, [("EC2", 40)], "NetUnblendedCost"),
+    ]
+    with pytest.raises(ValueError, match="Duplicate date"):
+        _net_summary(current, previous)
+
+
+def test_net_unblended_rejects_unexpected_previous_date():
+    current = [_make_day("2026-01-01", 50, [("EC2", 50)], "NetUnblendedCost")]
+    previous = [_make_day("2025-12-30", 40, [("EC2", 40)], "NetUnblendedCost")]
+    with pytest.raises(ValueError, match="unexpected"):
+        _net_summary(current, previous)
+
+
+def test_net_unblended_rejects_missing_previous_currency():
+    current = [_make_day("2026-01-01", 50, [("EC2", 50)], "NetUnblendedCost")]
+    previous = [_make_day("2025-12-31", 40, [("EC2", 40)], "NetUnblendedCost")]
+    previous[0]["Total"]["NetUnblendedCost"].pop("Unit")
+    previous[0]["Groups"][0]["Metrics"]["NetUnblendedCost"].pop("Unit")
+    with pytest.raises(ValueError, match="Missing currency"):
+        _net_summary(current, previous)
+
+
+def test_net_unblended_rejects_mixed_previous_currency():
+    current = [_make_day("2026-01-01", 50, [("EC2", 50)], "NetUnblendedCost")]
+    previous = [_make_day("2025-12-31", 40, [("EC2", 40)], "NetUnblendedCost")]
+    previous[0]["Groups"][0]["Metrics"]["NetUnblendedCost"]["Unit"] = "EUR"
+    with pytest.raises(ValueError, match="Mixed currency"):
+        _net_summary(current, previous)
+
+
+def test_net_unblended_rejects_current_previous_currency_mismatch():
+    current = [_make_day("2026-01-01", 50, [("EC2", 50)], "NetUnblendedCost")]
+    previous = [_make_day("2025-12-31", 40, [("EC2", 40)], "NetUnblendedCost")]
+    previous[0]["Total"]["NetUnblendedCost"]["Unit"] = "EUR"
+    previous[0]["Groups"][0]["Metrics"]["NetUnblendedCost"]["Unit"] = "EUR"
+    with pytest.raises(ValueError, match="currency mismatch"):
+        _net_summary(current, previous)

@@ -49,7 +49,14 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --extra dev
+      - name: Install verified CCAC 0.2.0 release validator
+        run: |
+          curl --fail --location --silent --show-error --output /tmp/cloudandcapital_ccac-0.2.0-py3-none-any.whl https://github.com/cloudandcapital/cloud-capital-analysis-contract/releases/download/v0.2.0/cloudandcapital_ccac-0.2.0-py3-none-any.whl
+          echo "bc46f363b1a03c94cf0da75759bccd0271de2c53b1f77a1a7255f9c8e7f768f1  /tmp/cloudandcapital_ccac-0.2.0-py3-none-any.whl" | sha256sum --check
+          uv pip install --python .venv/bin/python /tmp/cloudandcapital_ccac-0.2.0-py3-none-any.whl
       - run: uv run pytest tests/ -q
+        env:
+          REQUIRE_CCAC_RELEASE_VALIDATION: "1"
 
   package:
     name: Package smoke test
@@ -76,3 +83,4 @@ jobs:
           package-smoke/bin/finops-lite --no-cache ccac --demo > demo-1.json
           package-smoke/bin/finops-lite --no-cache ccac --demo > demo-2.json
           cmp demo-1.json demo-2.json
+          package-smoke/bin/finops-lite --no-cache ccac --demo --contract-version 1.1.0 > demo-1.1.json
