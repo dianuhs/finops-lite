@@ -153,6 +153,15 @@ def build_ccac_result(
             raise CCACBuildError(
                 "Real CCAC 1.1 output requires AWS Cost Explorer NetUnblendedCost; no fallback is permitted"
             )
+    if contract_version == "1.1.0" and mode == "illustrative":
+        if summary.get("illustrative_cost_basis") != "net_cost":
+            raise CCACBuildError(
+                "Illustrative CCAC 1.1 output requires illustrative_cost_basis=net_cost"
+            )
+        if summary.get("illustrative_cloud_sources") != ["aws"]:
+            raise CCACBuildError(
+                "Illustrative CCAC 1.1 output requires AWS as the sole illustrative Cloud source"
+            )
     source_window = summary.get("window") or {}
     start = _parse_date(source_window.get("start"), "window.start")
     inclusive_end = _parse_date(source_window.get("end"), "window.end")
@@ -163,6 +172,18 @@ def build_ccac_result(
         "end": (inclusive_end + timedelta(days=1)).isoformat(),
         "timezone": "UTC",
     }
+    day_count = (inclusive_end - start).days + 1
+    expected_comparison_window = {
+        "start": (start - timedelta(days=day_count)).isoformat(),
+        "end": (start - timedelta(days=1)).isoformat(),
+    }
+    if (
+        contract_version == "1.1.0"
+        and summary.get("comparison_window") != expected_comparison_window
+    ):
+        raise CCACBuildError(
+            "CCAC 1.1 requires the immediately preceding equal-length comparison_window"
+        )
 
     total = _decimal(summary.get("total_cost"), "total_cost")
     previous = _decimal(summary.get("previous_total_cost"), "previous_total_cost")
@@ -292,6 +313,11 @@ def build_ccac_result(
     )
     if contract_version == "1.1.0":
         illustrative = mode == "illustrative"
+        component_policy = (
+            "Cloud & Capital technology-spend boundary policy: include each charge type when AWS returns it in the unfiltered Cost Explorer result."
+            if not illustrative
+            else "The illustrative scenario follows Cloud & Capital's technology-spend boundary policy without asserting that an AWS API returned any charge type."
+        )
         canonical_metric["accounting_boundary"] = {
             "relationship": "canonical_scope_spend",
             "scope": "cloud",
@@ -300,7 +326,8 @@ def build_ccac_result(
             "cost_basis": "net_cost",
             "currency_minor_unit": 0.01,
             "inclusion_rules": [
-                "Cloud-provider-billed services, including provider-billed native AI, present in the authoritative AWS Cost Explorer summary."
+                "Cloud-provider-billed services, including provider-billed native AI, present in the authoritative source summary.",
+                component_policy,
             ],
             "exclusion_rules": [
                 "Direct AI-vendor billing and SaaS invoice or entitlement charges outside cloud-provider billing."
@@ -323,12 +350,21 @@ def build_ccac_result(
             "allocation_of_metric_id": None,
             "total_eligible": illustrative,
             "eligibility_reason": (
-                "The illustrative scenario declares AWS as its sole Cloud billing source; the unfiltered reconciled NetUnblendedCost summary covers the full scenario."
+                "The deterministic public scenario declares net_cost and AWS as its sole illustrative Cloud source; no account or AWS API was queried."
                 if illustrative
                 else "The connected AWS billing view is observed and reconciled but does not prove complete enterprise Cloud coverage across other AWS views, Azure, or Google Cloud."
             ),
         }
     metrics.append(canonical_metric)
+    previous_period = period
+    if contract_version == "1.1.0":
+        previous_end = start
+        previous_start = start - timedelta(days=day_count)
+        previous_period = {
+            "start": previous_start.isoformat(),
+            "end": previous_end.isoformat(),
+            "timezone": "UTC",
+        }
     metrics.append(
         _metric(
             metric_id="metric.cloud.previous-total",
@@ -337,7 +373,7 @@ def build_ccac_result(
             currency=currency,
             basis="observed",
             additivity="additive",
-            period=period,
+            period=previous_period,
             dimensions={"scope": "cloud", "comparison": "previous_equal_length_period"},
             evidence_id=evidence_id,
         )
@@ -481,8 +517,16 @@ def build_ccac_result(
                 "lossy_mapping": True,
                 "mapping_notes": (
                     [
-                        "AWS Cost Explorer NetUnblendedCost maps to CCAC net_cost; the request has no record-type filter, so returned credits, taxes, adjustments, and shared-service rows remain included.",
-                        "Service-level AWS Cost Explorer summary; not resource-level FOCUS billing rows.",
+                        (
+                            "Deterministic illustrative net-cost summary modeled for the public scenario; no account or AWS API was queried."
+                            if mode == "illustrative"
+                            else "Actual AWS Cost Explorer NetUnblendedCost maps to CCAC net_cost; no charge-type filter is passed, and credits, taxes, adjustments, and shared services are included when AWS returns them."
+                        ),
+                        (
+                            "Service-level illustrative summary; not an AWS query or resource-level billing export."
+                            if mode == "illustrative"
+                            else "Service-level AWS Cost Explorer summary; not resource-level FOCUS billing rows."
+                        ),
                         (
                             "Illustrative AWS is the sole Cloud billing source for this scenario."
                             if mode == "illustrative"
@@ -506,7 +550,11 @@ def build_ccac_result(
                 "kind": "source_query",
                 "source_ids": [source_id],
                 "description": (
-                    "Complete service-level AWS Cost Explorer NetUnblendedCost summary with no record-type filter and an equal-length previous-period comparison."
+                    (
+                        "Deterministic illustrative net-cost summary modeled for the public scenario; no account or AWS API was queried."
+                        if mode == "illustrative"
+                        else "Actual service-level AWS Cost Explorer NetUnblendedCost query with no charge-type filter and an equal-length previous-period comparison."
+                    )
                     if contract_version == "1.1.0"
                     else "Complete service-level AWS Cost Explorer summary with equal-length previous-period comparison."
                 ),
@@ -519,7 +567,18 @@ def build_ccac_result(
             "finops_lite": {
                 "group_by": "SERVICE",
                 **(
-                    {"aws_cost_metric": "NetUnblendedCost", "aws_filter": None}
+                    (
+                        {
+                            "illustrative_cost_basis": "net_cost",
+                            "illustrative_cloud_sources": ["aws"],
+                            "aws_api_queried": False,
+                        }
+                        if mode == "illustrative"
+                        else {
+                            "aws_cost_metric": "NetUnblendedCost",
+                            "aws_filter": None,
+                        }
+                    )
                     if contract_version == "1.1.0"
                     else {}
                 ),
@@ -570,3 +629,12 @@ def illustrative_summary() -> dict[str, Any]:
             for service, share in (("AmazonEC2", 0.7), ("AmazonS3", 0.3))
         ],
     }
+
+
+def illustrative_summary_1_1() -> dict[str, Any]:
+    """Explicit 1.1 public scenario with declared illustrative lineage."""
+    summary = illustrative_summary()
+    summary["illustrative_cost_basis"] = "net_cost"
+    summary["illustrative_cloud_sources"] = ["aws"]
+    summary["comparison_window"] = {"start": "2026-06-10", "end": "2026-06-30"}
+    return summary

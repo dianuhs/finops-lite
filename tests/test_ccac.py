@@ -5,12 +5,18 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
 
 import finops_lite.cli as cli_module
-from finops_lite.ccac import CCACBuildError, build_ccac_result, illustrative_summary
+from finops_lite.ccac import (
+    CCACBuildError,
+    build_ccac_result,
+    illustrative_summary,
+    illustrative_summary_1_1,
+)
 from finops_lite.cli import cli
 
 
@@ -107,7 +113,8 @@ def test_1_1_demo_emits_one_eligible_canonical_cloud_scope():
         "cost_basis": "net_cost",
         "currency_minor_unit": 0.01,
         "inclusion_rules": [
-            "Cloud-provider-billed services, including provider-billed native AI, present in the authoritative AWS Cost Explorer summary."
+            "Cloud-provider-billed services, including provider-billed native AI, present in the authoritative source summary.",
+            "The illustrative scenario follows Cloud & Capital's technology-spend boundary policy without asserting that an AWS API returned any charge type.",
         ],
         "exclusion_rules": [
             "Direct AI-vendor billing and SaaS invoice or entitlement charges outside cloud-provider billing."
@@ -129,8 +136,57 @@ def test_1_1_demo_emits_one_eligible_canonical_cloud_scope():
         },
         "allocation_of_metric_id": None,
         "total_eligible": True,
-        "eligibility_reason": "The illustrative scenario declares AWS as its sole Cloud billing source; the unfiltered reconciled NetUnblendedCost summary covers the full scenario.",
+        "eligibility_reason": "The deterministic public scenario declares net_cost and AWS as its sole illustrative Cloud source; no account or AWS API was queried.",
     }
+    previous = next(
+        item
+        for item in payload["metrics"]
+        if item["id"] == "metric.cloud.previous-total"
+    )
+    assert previous["period"] == {
+        "start": "2026-06-10",
+        "end": "2026-07-01",
+        "timezone": "UTC",
+    }
+    assert payload["period"] == {
+        "start": "2026-07-01",
+        "end": "2026-07-22",
+        "timezone": "UTC",
+    }
+    assert payload["extensions"]["finops_lite"]["illustrative_cost_basis"] == "net_cost"
+    assert payload["extensions"]["finops_lite"]["illustrative_cloud_sources"] == ["aws"]
+    assert payload["extensions"]["finops_lite"]["aws_api_queried"] is False
+    assert "aws_cost_metric" not in payload["extensions"]["finops_lite"]
+    assert "no account or AWS API was queried" in payload["evidence"][0]["description"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("illustrative_cost_basis", None, "illustrative_cost_basis=net_cost"),
+        ("illustrative_cost_basis", "billed_cost", "illustrative_cost_basis=net_cost"),
+        ("illustrative_cloud_sources", None, "sole illustrative Cloud source"),
+        (
+            "illustrative_cloud_sources",
+            ["aws", "azure"],
+            "sole illustrative Cloud source",
+        ),
+    ],
+)
+def test_1_1_demo_requires_explicit_illustrative_lineage(field, value, message):
+    summary = illustrative_summary_1_1()
+    if value is None:
+        summary.pop(field)
+    else:
+        summary[field] = value
+    with pytest.raises(CCACBuildError, match=message):
+        build_ccac_result(
+            summary,
+            mode="illustrative",
+            source_type="finops_lite_demo_summary",
+            source_version="1.0.0",
+            contract_version="1.1.0",
+        )
 
 
 def test_1_1_cli_file_is_deterministic_and_passes_released_ccac(tmp_path):
@@ -194,6 +250,7 @@ def test_ccac_real_1_1_uses_net_unblended_cost_and_is_partial(monkeypatch):
         seen.update(kwargs)
         summary = illustrative_summary()
         summary["aws_cost_metric"] = "NetUnblendedCost"
+        summary["comparison_window"] = {"start": "2026-06-10", "end": "2026-06-30"}
         return summary
 
     monkeypatch.setattr(cli_module, "run_summarize", fake_run_summarize)
@@ -228,6 +285,45 @@ def test_ccac_real_1_1_refuses_blended_cost_fallback():
             source_version="2017-10-25",
             contract_version="1.1.0",
         )
+
+
+def test_real_1_1_requests_only_net_unblended_without_filter(monkeypatch):
+    import finops_lite.core.cost_explorer as cost_explorer_module
+
+    requests = []
+
+    class FakeCostExplorerService:
+        def __init__(self, config):
+            pass
+
+        def get_cost_and_usage(self, *args, **kwargs):
+            requests.append(kwargs)
+            return {"ResultsByTime": []}
+
+    def fake_build_summary(*args, **kwargs):
+        summary = illustrative_summary()
+        summary["aws_cost_metric"] = "NetUnblendedCost"
+        return summary
+
+    monkeypatch.setattr(
+        cost_explorer_module, "CostExplorerService", FakeCostExplorerService
+    )
+    monkeypatch.setattr(cli_module, "_test_aws_connectivity", lambda *a, **k: None)
+    monkeypatch.setattr(cli_module, "build_cost_summary", fake_build_summary)
+
+    cli_module.run_summarize(
+        SimpleNamespace(aws=SimpleNamespace(profile=None, region=None)),
+        cli_module.date(2026, 7, 1),
+        cli_module.date(2026, 7, 21),
+        "SERVICE",
+        top_n=None,
+        cost_metric="NetUnblendedCost",
+    )
+    assert len(requests) == 2
+    assert all(request["metrics"] == ["NetUnblendedCost"] for request in requests)
+    assert all(
+        "Filter" not in request and "filter" not in request for request in requests
+    )
 
 
 def test_ccac_1_1_rejects_unsupported_currency():

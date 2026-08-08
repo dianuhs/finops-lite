@@ -89,6 +89,33 @@ def _daily_totals(cost_data: Dict[str, Any], metric_name: str) -> Dict[str, Deci
     return totals
 
 
+def _validate_complete_dates(
+    cost_data: Dict[str, Any], *, start: date, end: date, label: str
+) -> None:
+    observed: list[date] = []
+    for index, time_period in enumerate(cost_data.get("ResultsByTime", []) or []):
+        raw_date = (time_period.get("TimePeriod") or {}).get("Start")
+        if not raw_date:
+            raise ValueError(f"Missing {label} ResultsByTime[{index}].TimePeriod.Start")
+        try:
+            observed.append(date.fromisoformat(str(raw_date)))
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid {label} Cost Explorer date: {raw_date!r}"
+            ) from exc
+    if len(observed) != len(set(observed)):
+        raise ValueError(f"Duplicate date in {label} Cost Explorer response")
+    expected = {
+        start + timedelta(days=offset) for offset in range((end - start).days + 1)
+    }
+    missing = sorted(expected - set(observed))
+    unexpected = sorted(set(observed) - expected)
+    if missing or unexpected:
+        raise ValueError(
+            f"Incomplete {label} Cost Explorer dates: missing={missing}, unexpected={unexpected}"
+        )
+
+
 def _group_totals(cost_data: Dict[str, Any], metric_name: str) -> Dict[str, Decimal]:
     totals: Dict[str, Decimal] = {}
     for time_period in cost_data.get("ResultsByTime", []) or []:
@@ -146,6 +173,29 @@ def build_cost_summary(
     if metric_name not in {"BlendedCost", "NetUnblendedCost"}:
         raise ValueError(f"Unsupported AWS Cost Explorer metric: {metric_name}")
     currency = _extract_currency(current_data, metric_name)
+    comparison_window: Dict[str, str] | None = None
+    if metric_name == "NetUnblendedCost":
+        duration = (window_end - window_start).days + 1
+        previous_end = window_start - timedelta(days=1)
+        previous_start = previous_end - timedelta(days=duration - 1)
+        _validate_complete_dates(
+            current_data, start=window_start, end=window_end, label="current-period"
+        )
+        _validate_complete_dates(
+            previous_data,
+            start=previous_start,
+            end=previous_end,
+            label="previous-period",
+        )
+        previous_currency = _extract_currency(previous_data, metric_name)
+        if previous_currency != currency:
+            raise ValueError(
+                f"Current/previous currency mismatch: {currency} != {previous_currency}"
+            )
+        comparison_window = {
+            "start": previous_start.isoformat(),
+            "end": previous_end.isoformat(),
+        }
 
     current_totals = _daily_totals(current_data, metric_name)
     daily_group_totals = _daily_group_totals(current_data, metric_name)
@@ -221,4 +271,5 @@ def build_cost_summary(
     }
     if metric_name != "BlendedCost":
         result["aws_cost_metric"] = metric_name
+        result["comparison_window"] = comparison_window
     return result

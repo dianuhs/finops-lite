@@ -102,7 +102,9 @@ finops --no-cache ccac \
 
 The command retrieves the complete service breakdown rather than truncating it to the top ten. It refuses to emit a canonical result when daily service rows, service totals, daily totals, and the reported total do not reconcile.
 
-The explicit 1.1 path requests AWS Cost Explorer `NetUnblendedCost`, which AWS defines as cost after discounts, and maps it to CCAC `net_cost`. It does not fall back to `BlendedCost`. Because the query has no record-type filter, returned credits, taxes, adjustments, and shared-service rows remain included. The canonical Cloud metric includes provider-billed native AI and excludes direct AI-vendor billing.
+The explicit real 1.1 path requests AWS Cost Explorer `NetUnblendedCost`, which AWS defines as cost after discounts, and maps it to CCAC `net_cost`. It does not fall back to `BlendedCost`, and neither current nor previous request passes a charge-type filter. Under Cloud & Capital's technology-spend boundary policy, credits, taxes, adjustments, and shared services are included when AWS returns them in that unfiltered result. The canonical Cloud metric includes provider-billed native AI and excludes direct AI-vendor billing.
+
+The explicit 1.1 demo instead uses a deterministic illustrative net-cost summary modeled for the public scenario. It declares AWS as the scenario's sole illustrative Cloud source; no account or AWS API is queried.
 
 A connected AWS billing view does not prove complete enterprise Cloud coverage. Real 1.1 output therefore preserves the observed AWS value but declares partial coverage and is not eligible for an all-in technology-spend total. Native Azure and Google Cloud billing ingestion remain later work.
 

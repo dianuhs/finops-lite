@@ -1261,6 +1261,7 @@ def ccac_output(
         CCACBuildError,
         build_ccac_result,
         illustrative_summary,
+        illustrative_summary_1_1,
     )
 
     config = ctx.obj.config
@@ -1276,7 +1277,11 @@ def ccac_output(
 
     try:
         if demo:
-            summary = illustrative_summary()
+            summary = (
+                illustrative_summary_1_1()
+                if contract_version == "1.1.0"
+                else illustrative_summary()
+            )
             mode = "illustrative"
             source_type = "finops_lite_demo_summary"
             source_version = "1.0.0"
